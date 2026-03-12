@@ -1,0 +1,32 @@
+# Cloudflare Pages Configuration for aport.id
+# Production deployment via: pnpm run deploy
+# Bindings: KV for gallery index
+
+name = "aport-ai"
+compatibility_date = "2024-11-15"
+compatibility_flags = ["nodejs_compat"]
+pages_build_output_dir = "./out"
+
+# Production Environment
+[env.production]
+name = "aport-ai"
+
+[[env.production.kv_namespaces]]
+binding = "KV"
+id = ""  # TODO: Create KV namespace and add ID
+
+# Environment Variables (non-secret)
+[vars]
+NEXT_PUBLIC_APP_URL = "https://aport.id"
+NODE_ENV = "production"
+APORT_BASE_URL = "https://api.aport.io"
+APORT_ORG_ID = ""  # TODO: Set org ID
+
+# Secrets (set with: wrangler secret put SECRET_NAME)
+# wrangler secret put APORT_API_KEY
+
+# Preview (branch deployments)
+[env.preview]
+[[env.preview.kv_namespaces]]
+binding = "KV"
+id = ""  # TODO: Create preview KV namespace

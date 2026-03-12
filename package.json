@@ -1,0 +1,38 @@
+{
+  "name": "aport-ai",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --turbopack",
+    "dev:api": "wrangler pages dev functions --compatibility-date=2024-11-15 --port=8787",
+    "build": "next build",
+    "deploy": "pnpm build && wrangler pages deploy ./out --project-name=aport-ai",
+    "deploy:prod": "pnpm build && wrangler pages deploy ./out --project-name=aport-ai --branch=main",
+    "start": "next start",
+    "serve": "npx serve@latest out -p 3000",
+    "preview": "pnpm build && pnpm serve",
+    "lint": "eslint . --ext .ts,.tsx,.js,.jsx",
+    "type-check": "tsc --noEmit",
+    "clean": "rm -rf .next out"
+  },
+  "dependencies": {
+    "@heroicons/react": "^2.2.0",
+    "next": "^15.1.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "satori": "^0.12.0",
+    "qrcode": "^1.5.4"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20241127.0",
+    "@types/node": "^22.10.2",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@types/qrcode": "^1.5.5",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.7.2",
+    "wrangler": "^3.98.0"
+  }
+}

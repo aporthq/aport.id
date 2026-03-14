@@ -106,7 +106,7 @@ export default function GalleryPage() {
                 </div>
               </div>
               <a
-                href="/"
+                href="/create"
                 className="shrink-0 inline-flex items-center gap-1.5 rounded-xl bg-accent text-accent-foreground px-4 py-2 text-xs sm:text-sm font-semibold hover:brightness-110 transition-all shadow-lg shadow-accent/15"
               >
                 <span className="hidden sm:inline">Create yours</span>

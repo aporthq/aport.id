@@ -126,7 +126,7 @@ function Footer() {
         </a>
         <span>·</span>
         <a
-          href="https://x.com/aikiinc"
+          href="https://x.com/aport_io"
           className="hover:text-muted-foreground transition-colors"
         >
           X

@@ -36,7 +36,7 @@ interface PassportCardProps {
 }
 
 export function PassportCard({ passport, index = 0 }: PassportCardProps) {
-  const avatarUri = getAvatarDataUri(passport.agent_id, 64);
+  const avatarUri = getAvatarDataUri(passport.slug || passport.agent_id || '', 64);
   const primaryFramework = passport.framework?.[0]
     ? getFrameworkById(passport.framework[0])
     : null;

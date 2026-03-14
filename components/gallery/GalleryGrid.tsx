@@ -89,7 +89,7 @@ export function GalleryGrid({
       {/* Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
         {passports.map((passport, i) => (
-          <PassportCard key={passport.agent_id} passport={passport} index={i} />
+          <PassportCard key={passport.slug || passport.agent_id} passport={passport} index={i} />
         ))}
       </div>
 

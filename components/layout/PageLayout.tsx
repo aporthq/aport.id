@@ -53,7 +53,7 @@ function AmbientBackground() {
 // ─── Header ──────────────────────────────────────────────────────────────────
 
 interface HeaderProps {
-  currentPage?: "home" | "gallery";
+  currentPage?: "home" | "gallery" | "create" | "manage";
 }
 
 function Header({ currentPage = "home" }: HeaderProps) {
@@ -66,8 +66,11 @@ function Header({ currentPage = "home" }: HeaderProps) {
         aport.id
       </a>
       <div className="flex items-center gap-4 sm:gap-5 text-sm text-muted-foreground">
-        {currentPage !== "home" && (
-          <a href="/" className="transition-colors hover:text-foreground">
+        {currentPage !== "home" && currentPage !== "create" && (
+          <a
+            href="/create"
+            className="transition-colors hover:text-foreground"
+          >
             Create
           </a>
         )}
@@ -81,6 +84,15 @@ function Header({ currentPage = "home" }: HeaderProps) {
           Gallery
         </a>
         <a
+          href="/manage"
+          className={cn(
+            "transition-colors hover:text-foreground",
+            currentPage === "manage" && "text-foreground",
+          )}
+        >
+          Manage
+        </a>
+        <a
           href="/what-breed-is-my-ai"
           className="transition-colors hover:text-foreground"
         >
@@ -88,7 +100,7 @@ function Header({ currentPage = "home" }: HeaderProps) {
         </a>
         <a
           href="https://aport.io"
-          className="transition-colors hover:text-foreground"
+          className="hidden sm:block transition-colors hover:text-foreground"
         >
           Platform
         </a>
@@ -143,7 +155,7 @@ interface PageLayoutProps {
   /** Max content width — "narrow" (600px) for home, "wide" (1120px) for gallery */
   maxWidth?: "narrow" | "wide";
   /** Current page for header active state */
-  currentPage?: "home" | "gallery";
+  currentPage?: "home" | "gallery" | "create" | "manage";
 }
 
 export function PageLayout({

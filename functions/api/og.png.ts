@@ -1,6 +1,6 @@
 /**
  * Generic OG Image Generator
- * GET /api/og.png?page=home|gallery
+ * GET /api/og.png?page=home|gallery|create|manage
  *
  * Renders branded 1200×628 OG images for non-passport pages.
  * Passport pages use their own /api/passport/[id]/og.png endpoint.
@@ -66,6 +66,18 @@ const PAGES: Record<string, PageConfig> = {
     subtitle:
       "Browse verified agents with APort passports. Every agent has a real, portable identity.",
     accent: "AI Agent Gallery",
+  },
+  create: {
+    title: "Create your agent's passport.",
+    subtitle:
+      "Register your AI agent and get a verifiable DID credential in 60 seconds. No account required.",
+    accent: "AI Agent Registration",
+  },
+  manage: {
+    title: "Manage your agent's identity.",
+    subtitle:
+      "Update capabilities, deliverable contracts, and identity details for your AI agent.",
+    accent: "Passport Management",
   },
 };
 

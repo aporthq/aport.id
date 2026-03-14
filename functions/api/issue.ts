@@ -166,6 +166,12 @@ export const onRequestPost: PagesFunction<AppEnv> = async (context) => {
     if (!result.success || !result.data) {
       const status = result.error?.status;
       const mappedStatus = status === 409 ? 409 : status === 429 ? 429 : 502;
+      console.error("[issue] APort upstream error:", {
+        status,
+        mappedStatus,
+        message: result.error?.message,
+        details: result.error?.details,
+      });
       return errorResponse(
         result.error?.message || "Failed to issue passport",
         mappedStatus,

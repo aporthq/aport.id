@@ -299,6 +299,11 @@ export class APortService {
           .catch(() => ({ message: response.statusText }))) as {
           message?: string;
         };
+        console.error("[APort] createBuilderPassport failed:", {
+          status: response.status,
+          url: `${this.baseUrl}/api/orgs/${this.orgId}/issue`,
+          error: errorData,
+        });
         return {
           success: false,
           error: {

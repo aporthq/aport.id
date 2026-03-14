@@ -21,10 +21,12 @@ interface APortResponse<T = any> {
 
 interface PassportData {
   name: string;
-  role: "agent";
+  role: "agent" | "assistant" | "tool" | "service";
   description: string;
   regions?: string[];
   contact?: string;
+  framework?: string[];
+  links?: Record<string, string>;
   assurance?: {
     type: "kyc" | "kyb";
     assurance_level: string;
@@ -237,11 +239,15 @@ export class APortService {
 
     const passportData: PassportData = {
       name: displayName || email.split("@")[0],
-      role: "agent",
+      role: (metadata?.role as PassportData["role"]) || "agent",
       description:
         metadata?.description || `AI ${metadata?.role || "agent"} passport`,
       regions,
       contact: email,
+      // Send framework and links as top-level fields (not buried in metadata)
+      // so the org issue endpoint maps them to their dedicated columns
+      framework: metadata?.framework || [],
+      links: metadata?.links || {},
       assurance: {
         type: assuranceType,
         assurance_level: assuranceLevel,

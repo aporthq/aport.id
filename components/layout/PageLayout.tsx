@@ -87,7 +87,7 @@ function Header({ currentPage = "home" }: HeaderProps) {
           Breeds
         </a>
         <a
-          href={apiConfig.aportDomain}
+          href="https://aport.io"
           className="transition-colors hover:text-foreground"
         >
           Platform

@@ -4,7 +4,7 @@
  * Sliding window implementation: stores an array of request timestamps
  * per IP. Fails open — if KV errors, the request is allowed through.
  *
- * See PRD E3: 10 requests per hour per IP.
+ * See PRD E3. ~2 req/sec (120/min) allows rapid creation and retries.
  */
 import type { AppEnv } from "./types";
 import { getCorsHeaders } from "./cors";
@@ -22,8 +22,8 @@ interface RateLimitOptions {
   windowMs?: number;
 }
 
-const DEFAULT_MAX_REQUESTS = 10;
-const DEFAULT_WINDOW_MS = 60 * 60 * 1000; // 1 hour
+const DEFAULT_MAX_REQUESTS = 120;
+const DEFAULT_WINDOW_MS = 60 * 1000; // 1 minute (~2 req/sec)
 const LOCALHOST_MULTIPLIER = 10;
 
 const KV_PREFIX = "rl:";

@@ -6,9 +6,10 @@
  */
 
 import { apiConfig } from "@/lib/config/api";
+import { generateRequestToken } from "@/lib/request-token";
 
 export interface GalleryPassport {
-  agent_id: string;
+  agent_id?: string;
   slug: string;
   name: string;
   description: string;
@@ -51,7 +52,10 @@ export async function fetchGallery(
   const qs = params.toString();
   const url = `${apiConfig.endpoints.gallery}${qs ? `?${qs}` : ""}`;
 
-  const res = await fetch(url);
+  const token = await generateRequestToken();
+  const res = await fetch(url, {
+    headers: { "x-ag-token": token },
+  });
 
   if (!res.ok) {
     return { ok: false, passports: [], total: 0, hasMore: false };

@@ -2,6 +2,7 @@ import { getClientConfig } from "./env";
 
 const config = getClientConfig();
 const API_BASE_URL = config.app.apiBaseUrl;
+const APORT_DOMAIN = config.app.aportDomain;
 
 /**
  * API configuration for aport.id
@@ -9,6 +10,7 @@ const API_BASE_URL = config.app.apiBaseUrl;
 export const apiConfig = {
   baseUrl: API_BASE_URL,
   appBaseUrl: config.app.baseUrl,
+  aportDomain: APORT_DOMAIN,
 
   endpoints: {
     // Health
@@ -22,6 +24,9 @@ export const apiConfig = {
 
     // Gallery
     gallery: `${API_BASE_URL}/api/gallery`,
+
+    // Badge
+    badge: (slugOrId: string) => `${API_BASE_URL}/badge/${slugOrId}.svg`,
   },
 };
 

@@ -2,8 +2,8 @@
  * Cloudflare Pages Function environment bindings
  */
 export interface AppEnv {
-  // KV namespace for gallery index
-  KV: KVNamespace;
+  // KV namespace for gallery index, rate limiting, stats
+  APORT_ID_KV: KVNamespace;
 
   // APort API
   APORT_BASE_URL: string;
@@ -16,4 +16,7 @@ export interface AppEnv {
   // App
   NEXT_PUBLIC_APP_URL: string;
   NODE_ENV: string;
+
+  NEXT_PUBLIC_APORT_BASE_URL: string;
+  APORT_API_BASE_URL: string;
 }

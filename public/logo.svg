@@ -1,0 +1,44 @@
+<svg width="120" height="120" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Sophisticated gradients for quiet luxury -->
+    <linearGradient id="primaryGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0f172a;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#1e293b;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="accentGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#06b6d4;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#0891b2;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="subtleGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#f8fafc;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#e2e8f0;stop-opacity:0.8" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Minimalist background with subtle luxury -->
+  <circle cx="60" cy="60" r="58" fill="url(#subtleGradient)" stroke="url(#primaryGradient)" stroke-width="1.5"/>
+  
+  <!-- Bold, geometric "A" - the hero element -->
+  <g transform="translate(60, 60)">
+    <!-- Main A structure - bold and confident -->
+    <path d="M-18,-24 L18,-24 L12,-6 L-12,-6 Z" 
+          fill="url(#primaryGradient)" 
+          stroke="url(#primaryGradient)" 
+          stroke-width="0.5"/>
+    
+    <!-- Horizontal bar - sophisticated accent -->
+    <rect x="-9" y="-3" width="18" height="6" fill="url(#accentGradient)" rx="1"/>
+    
+    <!-- Lower section for stability -->
+    <path d="M-12,6 L12,6 L8,18 L-8,18 Z" 
+          fill="url(#primaryGradient)" 
+          stroke="url(#primaryGradient)" 
+          stroke-width="0.5"/>
+  </g>
+  
+  <!-- Single elegant accent element - verification dot -->
+  <circle cx="60" cy="60" r="3" fill="url(#accentGradient)" opacity="0.8"/>
+  
+  <!-- Subtle inner border for refinement -->
+  <circle cx="60" cy="60" r="45" fill="none" stroke="url(#accentGradient)" stroke-width="0.5" opacity="0.3"/>
+</svg>

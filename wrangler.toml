@@ -1,32 +1,47 @@
 # Cloudflare Pages Configuration for aport.id
-# Production deployment via: pnpm run deploy
-# Bindings: KV for gallery index
+# Production deployment via: pnpm run deploy:prod
+# Preview deployment via: pnpm run deploy
+# Bindings: KV for gallery index, rate limiting, stats
 
-name = "aport-ai"
+name = "aport-id"
 compatibility_date = "2024-11-15"
 compatibility_flags = ["nodejs_compat"]
 pages_build_output_dir = "./out"
 
 # Production Environment
 [env.production]
-name = "aport-ai"
+name = "aport-id"
 
 [[env.production.kv_namespaces]]
-binding = "KV"
-id = ""  # TODO: Create KV namespace and add ID
+binding = "APORT_ID_KV"
+id = "5dcc4a4f1a614a8b802281b69197705a"
 
 # Environment Variables (non-secret)
 [vars]
 NEXT_PUBLIC_APP_URL = "https://aport.id"
 NODE_ENV = "production"
-APORT_BASE_URL = "https://api.aport.io"
-APORT_ORG_ID = ""  # TODO: Set org ID
+APORT_BASE_URL = "https://aport.io"
+APORT_ORG_ID = "ap_org_05b4771fd79af4d0"
+APORT_ASSURANCE_TYPE = "kyb"
+APORT_ASSURANCE_LEVEL = "L1"
+AGENT_PASSPORT_BASE_URL = "https://aport.io"
 
-# Secrets (set with: wrangler secret put SECRET_NAME)
-# wrangler secret put APORT_API_KEY
+# Secrets (set via Cloudflare dashboard or CLI):
+# wrangler pages secret put APORT_API_KEY --project-name=aport-id
 
 # Preview (branch deployments)
 [env.preview]
+name = "aport-id"
+
+[env.preview.vars]
+NEXT_PUBLIC_APP_URL = "https://preview.aport.id"
+NODE_ENV = "preview"
+APORT_BASE_URL = "https://aport.io"
+APORT_ORG_ID = "ap_org_05b4771fd79af4d0"
+APORT_ASSURANCE_TYPE = "kyb"
+APORT_ASSURANCE_LEVEL = "L1"
+AGENT_PASSPORT_BASE_URL = "https://aport.io"
+
 [[env.preview.kv_namespaces]]
-binding = "KV"
-id = ""  # TODO: Create preview KV namespace
+binding = "APORT_ID_KV"
+id = "ab330e14856e4cabb9a14f6e23e49c63"

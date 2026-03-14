@@ -26,16 +26,21 @@ export function getClientConfig() {
       const isLocalDev =
         window.location.hostname === "localhost" ||
         window.location.hostname === "127.0.0.1";
-      if (isLocalDev) return "http://localhost:8787";
+      if (isLocalDev) return "http://localhost:8789";
     }
 
     return typeof window !== "undefined" ? window.location.origin : "";
+  };
+
+  const getAportDomain = () => {
+    return getEnv("NEXT_PUBLIC_APORT_BASE_URL", "http://localhost:8787");
   };
 
   return {
     app: {
       baseUrl: getBaseUrl(),
       apiBaseUrl: getApiBaseUrl(),
+      aportDomain: getAportDomain(),
       env: getEnvironment(),
     },
   };

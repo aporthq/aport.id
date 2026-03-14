@@ -1,0 +1,476 @@
+#!/usr/bin/env node
+
+/**
+ * aport-id CLI — Give Your Agent an ID
+ *
+ * Interactive wizard that creates a real APort passport.
+ * Usage: npx aport-id
+ */
+
+const readline = require("readline");
+const { execSync } = require("child_process");
+const fs = require("fs");
+const path = require("path");
+
+// ─── Config ─────────────────────────────────────────────────────────────────
+
+const API_URL = process.env.APORT_ID_API || "https://aport.id/api/issue";
+const PASSPORT_BASE = process.env.APORT_ID_URL || "https://aport.id/passport";
+
+// Keep in sync with lib/config/breeds.ts and functions/lib/breeds.ts
+const FRAMEWORKS = [
+  // OpenAI
+  { id: "gpt-5", name: "GPT-5", breed: "Bernese Mountain Dog — big, warm, surprisingly gentle for its size" },
+  { id: "gpt-4o", name: "GPT-4o", breed: "Golden Retriever — reliable, friendly, everyone has one" },
+  { id: "o3", name: "OpenAI o3", breed: "Bloodhound — slow and deliberate, never loses the scent" },
+  { id: "codex", name: "OpenAI Codex", breed: "Dalmatian — spots patterns in code, born to ship" },
+  // Anthropic
+  { id: "claude-opus", name: "Claude Opus", breed: "Border Collie — overthinks everything, extremely capable" },
+  { id: "claude-sonnet", name: "Claude Sonnet", breed: "Labrador — smart, well-rounded, good with people" },
+  { id: "claude-haiku", name: "Claude Haiku", breed: "Greyhound — built for speed, elegant under pressure" },
+  // Google
+  { id: "gemini-flash", name: "Gemini Flash", breed: "Whippet — fast, lean, surprisingly capable" },
+  { id: "gemini-pro", name: "Gemini Pro", breed: "Australian Shepherd — versatile worker, always ready to herd" },
+  // Meta
+  { id: "llama-4", name: "Llama 4", breed: "Alaskan Malamute — evolved from the wild, now leads the pack" },
+  { id: "llama-3", name: "Llama 3", breed: "Wolf — open, powerful, belongs to no one" },
+  // Mistral
+  { id: "mistral", name: "Mistral", breed: "Feral Cat — doesn't need anyone, runs on your hardware" },
+  { id: "mistral-large", name: "Mistral Large", breed: "Borzoi — French elegance meets raw horsepower" },
+  { id: "devstral", name: "Devstral", breed: "Papillon — tiny and refined, punches above its weight" },
+  // xAI
+  { id: "grok", name: "Grok", breed: "Jack Russell Terrier — unhinged energy, zero filter, all heart" },
+  // DeepSeek
+  { id: "deepseek-r1", name: "DeepSeek R1", breed: "Akita — silent thinker, reasons before it speaks" },
+  { id: "deepseek-v3", name: "DeepSeek V3", breed: "Shiba Inu — internet famous, deceptively independent" },
+  // Alibaba
+  { id: "qwen", name: "Qwen", breed: "Chow Chow — ancient lineage, fiercely self-sufficient" },
+  // Frameworks
+  { id: "langchain", name: "LangChain", breed: "Sheepdog — always orchestrating, never the star" },
+  { id: "crewai", name: "CrewAI", breed: "Sled Dog Team — many agents, one mission, no slacking" },
+  { id: "vercel-ai-sdk", name: "Vercel AI SDK", breed: "Basenji — barkless and fast, ships to the edge" },
+  { id: "openclaw", name: "OpenClaw", breed: "Husky — built for the cold, pulls heavy loads" },
+  { id: "other", name: "Other", breed: "Mixed Breed — origin unknown, character undeniable" },
+];
+
+const ROLES = ["agent", "assistant", "tool", "service"];
+const REGIONS = ["global", "us", "eu", "ca", "ap"];
+
+function slugify(name) {
+  return name
+    .toLowerCase()
+    .trim()
+    .replace(/[^\w\s-]/g, "")
+    .replace(/[\s_]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+// ─── Colors ─────────────────────────────────────────────────────────────────
+
+const c = {
+  reset: "\x1b[0m",
+  bold: "\x1b[1m",
+  dim: "\x1b[2m",
+  cyan: "\x1b[36m",
+  green: "\x1b[32m",
+  yellow: "\x1b[33m",
+  red: "\x1b[31m",
+  magenta: "\x1b[35m",
+};
+
+function log(msg = "") { console.log(msg); }
+function info(msg) { console.log(`${c.cyan}${msg}${c.reset}`); }
+function success(msg) { console.log(`${c.green}✓${c.reset} ${msg}`); }
+function warn(msg) { console.log(`${c.yellow}!${c.reset} ${msg}`); }
+function error(msg) { console.error(`${c.red}✗${c.reset} ${msg}`); }
+
+// ─── Prompting ──────────────────────────────────────────────────────────────
+
+const rl = readline.createInterface({
+  input: process.stdin,
+  output: process.stdout,
+});
+
+function ask(question, defaultVal) {
+  const suffix = defaultVal ? ` ${c.dim}(${defaultVal})${c.reset}` : "";
+  return new Promise((resolve) => {
+    rl.question(`${question}${suffix}: `, (answer) => {
+      resolve(answer.trim() || defaultVal || "");
+    });
+  });
+}
+
+function askSelect(question, options, defaultIdx = 0) {
+  return new Promise((resolve) => {
+    log();
+    log(`${question}`);
+    options.forEach((opt, i) => {
+      const marker = i === defaultIdx ? `${c.cyan}▸${c.reset}` : " ";
+      const label = typeof opt === "string" ? opt : opt.name;
+      const extra = typeof opt === "object" && opt.breed ? ` ${c.dim}— ${opt.breed}${c.reset}` : "";
+      log(`  ${marker} ${c.bold}${i + 1}${c.reset}. ${label}${extra}`);
+    });
+    rl.question(`${c.dim}Enter number [${defaultIdx + 1}]${c.reset}: `, (answer) => {
+      const idx = answer.trim() ? parseInt(answer.trim(), 10) - 1 : defaultIdx;
+      if (idx >= 0 && idx < options.length) {
+        resolve(options[idx]);
+      } else {
+        resolve(options[defaultIdx]);
+      }
+    });
+  });
+}
+
+function askYN(question, defaultYes = true) {
+  const hint = defaultYes ? "Y/n" : "y/N";
+  return new Promise((resolve) => {
+    rl.question(`${question} (${hint}): `, (answer) => {
+      const a = answer.trim().toLowerCase();
+      if (!a) resolve(defaultYes);
+      else resolve(a === "y" || a === "yes");
+    });
+  });
+}
+
+// ─── API ────────────────────────────────────────────────────────────────────
+
+async function issuePassport(data) {
+  const resp = await fetch(API_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+
+  const body = await resp.json();
+
+  if (!resp.ok) {
+    if (resp.status === 409) throw new Error(`Name "${data.name}" is already taken.`);
+    if (resp.status === 429) throw new Error("Rate limited. Please wait and try again.");
+    throw new Error(body.error || body.message || `API error (${resp.status})`);
+  }
+
+  return body;
+}
+
+// ─── Format date ────────────────────────────────────────────────────────────
+
+function fmtDate() {
+  return new Date().toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+}
+
+// ─── Clipboard ──────────────────────────────────────────────────────────────
+
+function copyToClipboard(text) {
+  try {
+    const platform = process.platform;
+    if (platform === "darwin") {
+      execSync("pbcopy", { input: text });
+    } else if (platform === "linux") {
+      try { execSync("xclip -selection clipboard", { input: text }); }
+      catch { execSync("xsel --clipboard --input", { input: text }); }
+    } else if (platform === "win32") {
+      execSync("clip", { input: text });
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// ─── Non-interactive mode ───────────────────────────────────────────────────
+
+function parseArgs() {
+  const args = process.argv.slice(2);
+  if (args.includes("--help") || args.includes("-h")) {
+    log(`
+${c.bold}aport-id${c.reset} — Give Your Agent an ID
+
+${c.bold}Usage:${c.reset}
+  npx aport-id                    Interactive wizard
+  npx aport-id --name ARIA \\      Non-interactive
+    --description "Research assistant" \\
+    --email you@email.com
+
+${c.bold}Options:${c.reset}
+  --name          Agent name (required)
+  --description   What does your agent do? (required, min 10 chars)
+  --email         Your email for claim flow (required)
+  --role          agent | assistant | tool | service (default: agent)
+  --framework     Framework ID (e.g., gpt-4o, claude-opus)
+  --regions       Comma-separated: us,eu,global (default: global)
+  --no-gallery    Don't show in public gallery
+  --json          Output JSON only (for scripting)
+  -h, --help      Show this help
+`);
+    process.exit(0);
+  }
+
+  const get = (flag) => {
+    const idx = args.indexOf(flag);
+    return idx !== -1 && idx + 1 < args.length ? args[idx + 1] : null;
+  };
+  const has = (flag) => args.indexOf(flag) !== -1;
+
+  const name = get("--name");
+  if (!name) return null; // Fall through to interactive mode
+
+  return {
+    name,
+    description: get("--description"),
+    email: get("--email"),
+    role: get("--role") || "agent",
+    framework: get("--framework") ? [get("--framework")] : [],
+    regions: get("--regions") ? get("--regions").split(",").map((r) => r.trim()) : ["global"],
+    showInGallery: !has("--no-gallery"),
+    jsonOnly: has("--json"),
+    apiUrl: get("--api-url"),
+  };
+}
+
+// ─── Main ───────────────────────────────────────────────────────────────────
+
+async function main() {
+  const nonInteractive = parseArgs();
+
+  if (nonInteractive) {
+    // Non-interactive mode
+    if (nonInteractive.apiUrl) {
+      // Can't reassign const, so we just override for this call
+    }
+    if (!nonInteractive.description) { error("--description is required"); process.exit(1); }
+    if (!nonInteractive.email) { error("--email is required"); process.exit(1); }
+
+    try {
+      const result = await issuePassport({
+        name: nonInteractive.name,
+        description: nonInteractive.description,
+        email: nonInteractive.email,
+        role: nonInteractive.role,
+        framework: nonInteractive.framework,
+        regions: nonInteractive.regions,
+        showInGallery: nonInteractive.showInGallery,
+      });
+
+      if (nonInteractive.jsonOnly) {
+        console.log(JSON.stringify(result, null, 2));
+      } else {
+        const slug = result.slug || slugify(nonInteractive.name);
+        const url = `${PASSPORT_BASE}/${slug}`;
+        success(`Passport issued for ${nonInteractive.name}`);
+        log(`\n  Passport: ${c.cyan}${url}${c.reset}\n`);
+      }
+    } catch (err) {
+      error(err.message);
+      process.exit(1);
+    }
+    process.exit(0);
+  }
+
+  // ─── Interactive mode ─────────────────────────────────────────────────
+
+  log();
+  log(`${c.bold}${c.cyan}aport.id${c.reset} ${c.bold}— Give Your Agent an ID${c.reset}`);
+  log(`${c.dim}Create a real APort passport in 60 seconds.${c.reset}`);
+  log();
+
+  // Agent name
+  const name = await ask(`${c.bold}Agent name${c.reset}`);
+  if (!name) { error("Agent name is required."); rl.close(); process.exit(1); }
+
+  // Username (slug)
+  const defaultSlug = slugify(name);
+  const chosenSlug = await ask(`${c.bold}@${c.reset} ${c.bold}Username${c.reset}`, defaultSlug);
+  const nameSlug = slugify(chosenSlug || defaultSlug);
+  log(`  ${c.dim}→${c.reset} ${c.cyan}aport.id/passport/${nameSlug}${c.reset}`);
+
+  // Role
+  const role = await askSelect("Role:", ROLES.map((r) => r.charAt(0).toUpperCase() + r.slice(1)), 0);
+  const roleVal = (typeof role === "string" ? role : role.name || role).toLowerCase();
+
+  // Model / Framework
+  const fw = await askSelect("Model / Framework:", FRAMEWORKS, 0);
+  const breed = fw.breed;
+  log(`  ${c.magenta}${fw.name}${c.reset}: "${c.dim}${breed}${c.reset}"`);
+
+  // Description
+  const description = await ask(
+    `${c.bold}What does your agent do?${c.reset}`,
+    "A research assistant that browses the web and summarizes papers"
+  );
+  if (description.length < 10) { error("Description must be at least 10 characters."); rl.close(); process.exit(1); }
+
+  // Email
+  const email = await ask(`${c.bold}Your email${c.reset} (for claim flow)`);
+  if (!email || !email.includes("@")) { error("Valid email required."); rl.close(); process.exit(1); }
+
+  // Regions
+  log();
+  log(`${c.bold}Operating regions${c.reset} ${c.dim}(comma-separated, or press Enter for Global)${c.reset}`);
+  log(`  ${c.dim}Options: ${REGIONS.join(", ")}${c.reset}`);
+  const regionsInput = await ask("Regions", "global");
+  const regions = regionsInput.split(",").map((r) => r.trim().toLowerCase()).filter(Boolean);
+
+  // Gallery
+  const showInGallery = await askYN("Show in public gallery?", true);
+
+  // Deliverable enforcement (optional)
+  log();
+  log(`${c.bold}${c.cyan}Deliverable contract${c.reset} ${c.dim}(optional)${c.reset}`);
+  log(`${c.dim}Define what your agent must deliver before marking a task done.${c.reset}`);
+  const wantDeliverable = await askYN("Add deliverable enforcement?", false);
+
+  let deliverable = null;
+  if (wantDeliverable) {
+    const requireSummary = await askYN("  Require written summary?", true);
+    let minWords = 20;
+    if (requireSummary) {
+      const wordsInput = await ask("  Minimum summary words", "20");
+      minWords = Math.max(5, parseInt(wordsInput) || 20);
+    }
+    const requireTests = await askYN("  Require tests passing?", false);
+    const requireReviewer = await askYN("  Require review by different agent?", false);
+    const scanOutput = await askYN("  Scan output for blocked patterns?", false);
+    let blockedPatterns = [];
+    if (scanOutput) {
+      const patternsInput = await ask("  Blocked patterns (comma-separated)", "TODO, FIXME");
+      blockedPatterns = patternsInput.split(",").map((s) => s.trim()).filter(Boolean);
+    }
+
+    log();
+    log(`  ${c.dim}Acceptance criteria${c.reset} ${c.dim}(Enter blank to finish)${c.reset}`);
+    const criteria = [];
+    for (let i = 0; i < 20; i++) {
+      const criterion = await ask(`  Criterion ${i + 1}`);
+      if (!criterion) break;
+      criteria.push(criterion);
+    }
+
+    deliverable = {
+      require_summary: requireSummary,
+      min_summary_words: minWords,
+      require_tests_passing: requireTests,
+      require_different_reviewer: requireReviewer,
+      scan_output: scanOutput,
+      blocked_patterns: blockedPatterns,
+      acceptance_criteria: criteria,
+    };
+  }
+
+  // Confirm
+  log();
+  log(`${c.bold}─── Summary ───${c.reset}`);
+  log(`  Name:        ${c.bold}${name}${c.reset} ${c.dim}(@${nameSlug})${c.reset}`);
+  log(`  Role:        ${roleVal}`);
+  log(`  Model:       ${fw.name} (${breed.split("—")[0].trim()})`);
+  log(`  Description: ${description.length > 60 ? description.slice(0, 57) + "..." : description}`);
+  log(`  Email:       ${email}`);
+  log(`  Regions:     ${regions.join(", ")}`);
+  log(`  Gallery:     ${showInGallery ? "Yes" : "No"}`);
+  if (deliverable) {
+    const parts = [];
+    if (deliverable.require_summary) parts.push(`summary (${deliverable.min_summary_words}+ words)`);
+    if (deliverable.require_tests_passing) parts.push("tests passing");
+    if (deliverable.require_different_reviewer) parts.push("different reviewer");
+    if (deliverable.scan_output) parts.push(`scan (${deliverable.blocked_patterns.join(", ")})`);
+    if (deliverable.acceptance_criteria.length > 0) parts.push(`${deliverable.acceptance_criteria.length} criteria`);
+    log(`  Contract:    ${parts.join(", ") || "configured"}`);
+  }
+  log();
+
+  const proceed = await askYN("Issue passport?", true);
+  if (!proceed) { log("Cancelled."); rl.close(); process.exit(0); }
+
+  // Issue
+  log();
+  info("Issuing passport...");
+
+  try {
+    const result = await issuePassport({
+      name,
+      description,
+      email,
+      role: roleVal,
+      framework: [fw.id],
+      regions,
+      showInGallery,
+      ...(deliverable && { deliverable }),
+    });
+
+    const agentId = result.agent_id;
+    const slug = result.slug || slugify(name);
+    const url = `${PASSPORT_BASE}/${slug}`;
+
+    log();
+    success(`Passport issued for ${c.bold}${name}${c.reset} ${c.dim}(@${slug})${c.reset}`);
+    log();
+    log(`  ${c.dim}Username:${c.reset} ${c.cyan}@${slug}${c.reset}`);
+    log(`  ${c.dim}Role:${c.reset}    ${roleVal.charAt(0).toUpperCase() + roleVal.slice(1)}`);
+    log(`  ${c.dim}Model:${c.reset}   ${fw.name} (${breed.split("—")[0].trim()})`);
+    log(`  ${c.dim}Born:${c.reset}    ${fmtDate()}`);
+    log(`  ${c.dim}Regions:${c.reset} ${regions.map((r) => r.toUpperCase()).join(", ")}`);
+    log();
+    log(`  ${c.dim}Passport:${c.reset} ${c.cyan}${url}${c.reset}`);
+    log();
+    log(`  📧 Claim email sent to ${c.bold}${email}${c.reset}`);
+    log(`     Click the link to claim ${name}'s passport.`);
+    log();
+
+    // Save JSON?
+    const saveJson = await askYN("Save passport JSON?", true);
+    if (saveJson) {
+      const filePath = path.join(process.cwd(), "aport-passport.json");
+      fs.writeFileSync(
+        filePath,
+        JSON.stringify(
+          {
+            agent_id: agentId,
+            slug,
+            name,
+            role: roleVal,
+            framework: [fw.id],
+            breed: breed.split("—")[0].trim(),
+            regions,
+            description,
+            passport_url: url,
+            issued_at: new Date().toISOString(),
+          },
+          null,
+          2,
+        ) + "\n",
+      );
+      success(`Saved to ${c.dim}${filePath}${c.reset}`);
+    }
+
+    // Copy URL?
+    const copyUrl = await askYN("Copy URL to clipboard?", true);
+    if (copyUrl) {
+      if (copyToClipboard(url)) {
+        success("Copied to clipboard!");
+      } else {
+        warn("Could not copy. URL: " + url);
+      }
+    }
+
+    log();
+    log(`  ${c.dim}─── Next: Install agent skills ───${c.reset}`);
+    log(`  ${c.dim}git clone https://github.com/aporthq/aport-skills.git ~/.claude/skills/aport-skills${c.reset}`);
+    log(`  ${c.dim}Skills: /aport-complete, /aport-standup, /aport-handoff, /aport-status${c.reset}`);
+    log();
+  } catch (err) {
+    error(err.message);
+    rl.close();
+    process.exit(1);
+  }
+
+  rl.close();
+}
+
+main().catch((err) => {
+  error(err.message);
+  process.exit(1);
+});

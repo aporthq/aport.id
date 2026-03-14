@@ -1,0 +1,16 @@
+User-agent: *
+Allow: /
+
+# Agent directory — AI agents start here
+# See also: https://aport.id/agents.txt
+
+Sitemap: https://aport.id/sitemap.xml
+
+# OG images are cacheable
+User-agent: Twitterbot
+Allow: /api/og.png
+Allow: /api/passport/
+
+User-agent: facebookexternalhit
+Allow: /api/og.png
+Allow: /api/passport/

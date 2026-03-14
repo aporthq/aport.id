@@ -4,14 +4,16 @@
 
 const ALLOWED_ORIGINS = [
   "http://localhost:3000",
-  "http://localhost:8787",
+  "http://localhost:3001",
+  "http://localhost:8789",
   "https://aport.id",
   "https://www.aport.id",
 ];
 
 export function getCorsHeaders(request: Request): Record<string, string> {
   const origin = request.headers.get("Origin") || "";
-  const isAllowed = ALLOWED_ORIGINS.includes(origin) || origin.endsWith(".aport.id");
+  const isAllowed =
+    ALLOWED_ORIGINS.includes(origin) || origin.endsWith(".aport.id");
 
   return {
     "Access-Control-Allow-Origin": isAllowed ? origin : ALLOWED_ORIGINS[0],

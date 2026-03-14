@@ -2,12 +2,13 @@
  * Passport retrieval proxy
  * GET /api/passport/:id
  *
- * Fetches passport data from APort API by agent_id.
- * Proxied so the API key stays server-side.
+ * Fetches passport data from APort API via APortService.
+ * Supports ?format=json|vc|vp query param.
  */
 import type { AppEnv } from '../../lib/types';
 import { getCorsHeaders, handleCorsPreflightRequest } from '../../lib/cors';
 import { jsonResponse, errorResponse } from '../../lib/response';
+import { createAPortService } from '../../lib/services/aport';
 
 export const onRequestOptions: PagesFunction<AppEnv> = async (context) => {
   const res = handleCorsPreflightRequest(context.request);
@@ -17,31 +18,30 @@ export const onRequestOptions: PagesFunction<AppEnv> = async (context) => {
 export const onRequestGet: PagesFunction<AppEnv> = async (context) => {
   const { env, request, params } = context;
   const cors = getCorsHeaders(request);
-  const agentId = params.id as string;
+  const idOrSlug = params.id as string;
 
-  if (!agentId) {
-    return errorResponse('Passport ID is required', 400, cors);
+  if (!idOrSlug) {
+    return errorResponse('Passport ID or slug is required', 400, cors);
   }
 
-  try {
-    const baseUrl = env.APORT_BASE_URL || 'https://api.aport.io';
-    const response = await fetch(`${baseUrl}/api/passports/${agentId}`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(env.APORT_API_KEY && { 'Authorization': `Bearer ${env.APORT_API_KEY}` }),
-      },
-    });
+  const url = new URL(request.url);
+  const format = (url.searchParams.get('format') || 'json') as 'json' | 'vc' | 'vp';
 
-    if (!response.ok) {
-      if (response.status === 404) {
-        return errorResponse('Passport not found', 404, cors);
-      }
-      return errorResponse(`APort API returned ${response.status}`, 502, cors);
+  const aport = createAPortService(env);
+
+  try {
+    const result = await aport.resolvePassport(idOrSlug, format);
+
+    if (!result.success) {
+      const status = result.error?.status || 502;
+      return errorResponse(
+        result.error?.message || 'Failed to fetch passport',
+        status,
+        cors,
+      );
     }
 
-    const data = await response.json();
-    return jsonResponse(data, 200, {
+    return jsonResponse(result.data, 200, {
       ...cors,
       'Cache-Control': 'public, max-age=60, s-maxage=300',
     });

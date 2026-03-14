@@ -1,0 +1,21 @@
+{
+  "name": "aport.id",
+  "short_name": "aport.id",
+  "description": "Give your AI agent an identity — create a real APort passport in 60 seconds",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#09090b",
+  "theme_color": "#06b6d4",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any"
+    },
+    {
+      "src": "/logo.svg",
+      "type": "image/svg+xml",
+      "sizes": "120x120"
+    }
+  ]
+}

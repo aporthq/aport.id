@@ -21,6 +21,8 @@ const nextConfig = {
     return [
       { source: "/passport/:id", destination: "/passport?id=:id" },
       { source: "/passport/:id/", destination: "/passport?id=:id" },
+      { source: "/breed/:breedSlug/:modelId", destination: "/breed" },
+      { source: "/breed/:breedSlug/:modelId/", destination: "/breed" },
     ];
   },
 }

@@ -11,11 +11,11 @@ import type { Metadata } from "next";
 
 export const SITE = {
   name: "aport.id",
-  title: "aport.id — Give Your Agent an ID",
+  title: "aport.id - Give Your Agent an ID",
   description:
     "Every agent deserves a name, an origin, and an identity it can carry anywhere. Create a real APort passport in 60 seconds.",
   url: process.env.NEXT_PUBLIC_APP_URL || "https://aport.id",
-  twitter: "@aikiinc",
+  twitter: "@aport_io",
   locale: "en_US",
   themeColor: "#06b6d4",
 } as const;
@@ -111,7 +111,7 @@ export function jsonLdOrganization(): Record<string, unknown> {
     logo: `${SITE.url}/icon.svg`,
     sameAs: [
       "https://github.com/aporthq",
-      "https://x.com/aikiinc",
+      "https://x.com/aport_io",
       "https://aport.io",
     ],
     description: SITE.description,

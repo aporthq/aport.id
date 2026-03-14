@@ -33,8 +33,10 @@ const BREED_SLUGS: Record<string, string> = {
 
 const STATIC_PAGES = [
   { loc: "/", changefreq: "weekly", priority: "1.0" },
+  { loc: "/create/", changefreq: "weekly", priority: "0.9" },
   { loc: "/gallery/", changefreq: "daily", priority: "0.8" },
   { loc: "/what-breed-is-my-ai/", changefreq: "weekly", priority: "0.8" },
+  { loc: "/manage/", changefreq: "monthly", priority: "0.7" },
   { loc: "/skill", changefreq: "monthly", priority: "0.6" },
   { loc: "/agents.txt", changefreq: "monthly", priority: "0.5" },
 ];

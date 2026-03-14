@@ -23,7 +23,7 @@ export const SITE = {
 // ─── OG image URLs ──────────────────────────────────────────────────────────
 
 export function ogImageUrl(
-  page: "home" | "gallery" | "passport",
+  page: "home" | "gallery" | "passport" | "create" | "manage",
   slugOrId?: string,
 ): string {
   if (page === "passport" && slugOrId) {

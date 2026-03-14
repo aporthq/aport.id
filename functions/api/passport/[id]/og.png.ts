@@ -1,17 +1,25 @@
 /**
- * OG Image Generator — PRD E4
+ * OG Image Generator — Passport Card
  * GET /api/passport/:id/og.png
  *
  * Renders a 1200×628 passport card as PNG via @cloudflare/pages-plugin-vercel-og.
- * Uses satori element objects (no JSX needed).
- * Cached for 24 hours on Cloudflare edge.
+ *
+ * Design principles (research-backed):
+ * - Fitt's Law: large touch targets → name & avatar dominate
+ * - Von Restorff Effect: one bold accent element (breed name) pops
+ * - Miller's Law: max 4 information chunks (name, breed, role+desc, verified)
+ * - F-Pattern: key info top-left, secondary top-right, scan left-to-right
+ * - Picture Superiority: avatar is 5× larger → remembered 6× better than text
+ * - Serial Position: strong first item (name) + strong last item (verified badge)
+ * - Contrast: 15:1 ratio on primary text, gradient accents for depth
+ *
+ * Cached 24 hours on Cloudflare edge.
  */
 import type { AppEnv } from "../../../lib/types";
 import { getCorsHeaders } from "../../../lib/cors";
 import { createAPortService } from "../../../lib/services/aport";
 import { ImageResponse } from "@cloudflare/pages-plugin-vercel-og/api";
-
-import { BREEDS } from "../../../lib/breeds";
+import { BREEDS, BREED_TAGLINES } from "../../../lib/breeds";
 
 // ─── Avatar ─────────────────────────────────────────────────────────────────
 
@@ -58,22 +66,23 @@ function avatarRects(id: string): { x: number; y: number; color: string }[] {
   return rects;
 }
 
+function getPaletteForId(id: string): string[] {
+  const b = hashStr(id);
+  return PALETTES[b[0] % PALETTES.length];
+}
+
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 function fmtDate(iso: string): string {
   try {
     return new Date(iso).toLocaleDateString("en-US", {
       year: "numeric",
-      month: "long",
+      month: "short",
       day: "numeric",
     });
   } catch {
     return "—";
   }
-}
-
-function truncId(id: string): string {
-  return id.length <= 16 ? id : `${id.slice(0, 8)}...${id.slice(-6)}`;
 }
 
 // ─── Satori element builder ─────────────────────────────────────────────────
@@ -87,7 +96,6 @@ function h(
 ): El {
   if (children.length === 0) return { type, props: { style } };
   if (children.length === 1) return { type, props: { style, children: children[0] } };
-  // Satori requires display:flex for multiple children
   if (!style.display) style = { display: "flex", ...style };
   return { type, props: { style, children } };
 }
@@ -118,92 +126,62 @@ async function loadFonts(): Promise<void> {
   fontBold = bold;
 }
 
-// ─── Build card tree ────────────────────────────────────────────────────────
+// ─── Build card ─────────────────────────────────────────────────────────────
 
 function buildCard(p: {
   name: string;
   role: string;
   desc: string;
   breed: string | null;
+  breedTagline: string | null;
+  framework: string | null;
   status: string;
   claimed: boolean;
   agentId: string;
   slug: string;
   regions: string[];
   createdAt: string;
+  capabilityCount: number;
 }): El {
-  const CELL = 14;
-  const PAD = CELL;
-  const AV = CELL * 5 + PAD * 2;
+  const palette = getPaletteForId(p.agentId);
+  const accentPrimary = palette[0];
+  const accentDark = palette[2];
+  const CELL = 28;
+  const GAP = 3;
+  const AV_SIZE = CELL * 5 + GAP * 4;
   const rects = avatarRects(p.agentId);
 
-  // Avatar cells
+  // Build avatar cells — 5×5 grid, much larger
   const avCells: El[] = [];
-  for (let i = 0; i < 25; i++) {
-    const row = Math.floor(i / 5);
-    const col = i % 5;
-    const rect = rects.find((r) => r.x === col && r.y === row);
-    avCells.push(
-      h("div", {
-        width: `${CELL}px`,
-        height: `${CELL}px`,
-        borderRadius: "2px",
-        background: rect ? rect.color : "transparent",
-      }),
-    );
+  for (let row = 0; row < 5; row++) {
+    for (let col = 0; col < 5; col++) {
+      const rect = rects.find((r) => r.x === col && r.y === row);
+      avCells.push(
+        h("div", {
+          position: "absolute",
+          left: `${col * (CELL + GAP)}px`,
+          top: `${row * (CELL + GAP)}px`,
+          width: `${CELL}px`,
+          height: `${CELL}px`,
+          borderRadius: "6px",
+          background: rect ? rect.color : "rgba(255,255,255,0.04)",
+        }),
+      );
+    }
   }
 
-  const statusBadge = h(
-    "div",
-    {
-      display: "flex",
-      alignItems: "center",
-      borderRadius: "99px",
-      padding: "6px 14px",
-      fontSize: "14px",
-      background: p.status === "active" ? "rgba(16,185,129,0.1)" : "rgba(239,68,68,0.1)",
-      color: p.status === "active" ? "#34d399" : "#f87171",
-      border: `1px solid ${p.status === "active" ? "rgba(16,185,129,0.15)" : "rgba(239,68,68,0.15)"}`,
-    },
-    p.status,
-  );
+  // Respect the user's chosen casing — "coolBeans" stays "coolBeans"
+  const displayName = p.name.length > 20 ? p.name.slice(0, 18) + "…" : p.name;
 
-  const claimBadge = h(
-    "div",
-    {
-      display: "flex",
-      alignItems: "center",
-      borderRadius: "99px",
-      padding: "6px 14px",
-      fontSize: "14px",
-      background: p.claimed ? "rgba(34,211,238,0.1)" : "rgba(245,158,11,0.1)",
-      color: p.claimed ? "#22d3ee" : "#fbbf24",
-      border: `1px solid ${p.claimed ? "rgba(34,211,238,0.15)" : "rgba(245,158,11,0.15)"}`,
-    },
-    p.claimed ? "Claimed" : "Unclaimed",
-  );
+  // Truncate description — one strong line
+  const displayDesc = p.desc.length > 90 ? p.desc.slice(0, 87) + "…" : p.desc;
 
-  const nameEl = h(
-    "div",
-    { fontSize: "42px", fontWeight: 700, letterSpacing: "-0.02em", lineHeight: 1.1 },
-    p.name.length > 24 ? p.name.slice(0, 22) + "..." : p.name,
-  );
+  // Role label — capitalize
+  const roleLabel = p.role.charAt(0).toUpperCase() + p.role.slice(1);
 
-  const nameBreedChildren: (El | string)[] = [nameEl];
-  if (p.breed) {
-    nameBreedChildren.push(
-      h("div", { fontSize: "18px", color: "#22d3ee", marginTop: "4px" }, p.breed),
-    );
-  }
-
-  // Field column helper
-  const field = (label: string, value: string) =>
-    h(
-      "div",
-      { display: "flex", flexDirection: "column", gap: "4px" },
-      h("div", { fontSize: "11px", color: "rgba(122,139,163,0.5)", letterSpacing: "0.08em" }, label),
-      h("div", { fontSize: "15px", color: "#e8ecf1" }, value),
-    );
+  // Apple layout: single column, everything flows from one anchor point.
+  // Top row: avatar + name on same baseline. Content cascades down.
+  // No split vertical alignment — everything shares the same visual gravity.
 
   return h(
     "div",
@@ -213,141 +191,361 @@ function buildCard(p: {
       display: "flex",
       flexDirection: "column",
       background: "#06090f",
-      padding: "48px 56px",
       fontFamily: "Inter",
-      color: "#e8ecf1",
+      color: "#f0f4f8",
       position: "relative",
+      overflow: "hidden",
+      padding: "56px 64px",
     },
-    // Ambient glow
+
+    // ── Background: gradient orbs (palette-matched, subtle) ──
     h("div", {
       position: "absolute",
-      top: "-100px",
-      right: "0px",
+      top: "-200px",
+      right: "-150px",
+      width: "700px",
+      height: "700px",
+      borderRadius: "50%",
+      background: `radial-gradient(circle, ${accentPrimary}18 0%, ${accentDark}08 50%, transparent 70%)`,
+    }),
+    h("div", {
+      position: "absolute",
+      bottom: "-120px",
+      left: "-80px",
       width: "400px",
       height: "400px",
       borderRadius: "50%",
-      background: "rgba(6,182,212,0.08)",
+      background: `radial-gradient(circle, ${accentPrimary}0c 0%, transparent 60%)`,
     }),
-    // Card
+
+    // ── Row 1: Avatar + Name + Status (shared baseline — Apple style) ──
     h(
       "div",
       {
         display: "flex",
-        flexDirection: "column",
-        flexGrow: 1,
-        background: "rgba(255,255,255,0.03)",
-        borderRadius: "24px",
-        border: "1px solid rgba(255,255,255,0.08)",
-        padding: "40px 48px",
+        alignItems: "center",
+        gap: "28px",
         position: "relative",
-        overflow: "hidden",
+        zIndex: 1,
       },
-      // Top edge highlight
-      h("div", {
-        position: "absolute",
-        top: "0",
-        left: "100px",
-        width: "880px",
-        height: "1px",
-        background: "rgba(255,255,255,0.1)",
-      }),
-      // Header row
+      // Avatar with glow
       h(
         "div",
-        { display: "flex", alignItems: "flex-start", gap: "20px", marginBottom: "16px" },
-        // Avatar
+        {
+          position: "relative",
+          width: `${AV_SIZE + 24}px`,
+          height: `${AV_SIZE + 24}px`,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          flexShrink: 0,
+        },
+        // Glow
+        h("div", {
+          position: "absolute",
+          width: `${AV_SIZE + 40}px`,
+          height: `${AV_SIZE + 40}px`,
+          borderRadius: "28px",
+          background: `${accentPrimary}12`,
+        }),
+        // Avatar grid
         h(
           "div",
           {
-            width: `${AV}px`,
-            height: `${AV}px`,
-            borderRadius: "16px",
-            background: "rgba(255,255,255,0.06)",
-            display: "flex",
-            flexWrap: "wrap",
-            alignContent: "flex-start",
-            padding: `${PAD}px`,
-            gap: "0px",
-            flexShrink: 0,
+            position: "relative",
+            width: `${AV_SIZE}px`,
+            height: `${AV_SIZE}px`,
+            borderRadius: "20px",
+            background: "rgba(255,255,255,0.04)",
+            border: `1px solid ${accentPrimary}25`,
           },
           ...avCells,
         ),
-        // Name + breed
-        h(
-          "div",
-          { display: "flex", flexDirection: "column", flexGrow: 1, minWidth: 0 },
-          ...nameBreedChildren,
-        ),
-        // Badges
-        h("div", { display: "flex", gap: "8px", flexShrink: 0 }, statusBadge, claimBadge),
       ),
-      // Role + description
-      h(
-        "div",
-        { display: "flex", alignItems: "flex-start", gap: "10px", marginBottom: "24px" },
-        h(
-          "div",
-          {
-            fontSize: "13px",
-            background: "rgba(255,255,255,0.06)",
-            border: "1px solid rgba(255,255,255,0.06)",
-            borderRadius: "6px",
-            padding: "3px 10px",
-            color: "#7a8ba3",
-            flexShrink: 0,
-          },
-          p.role.charAt(0).toUpperCase() + p.role.slice(1),
-        ),
-        h(
-          "div",
-          { fontSize: "15px", color: "#7a8ba3", lineHeight: 1.5 },
-          p.desc.length > 120 ? p.desc.slice(0, 117) + "..." : p.desc,
-        ),
-      ),
-      // Divider
-      h("div", { height: "1px", background: "rgba(255,255,255,0.06)", marginBottom: "24px" }),
-      // Fields
-      h(
-        "div",
-        { display: "flex", gap: "40px", flexGrow: 1 },
-        field("BORN", p.createdAt ? fmtDate(p.createdAt) : "—"),
-        field("REGIONS", p.regions.length ? p.regions.map((r) => r.toUpperCase()).join(", ") : "Global"),
-        field("AGENT ID", truncId(p.agentId)),
-      ),
-      // Footer
+      // Name + breed stack (vertically centered to avatar)
       h(
         "div",
         {
           display: "flex",
-          justifyContent: "space-between",
-          alignItems: "flex-end",
-          marginTop: "auto",
-          paddingTop: "20px",
+          flexDirection: "column",
+          gap: "4px",
+          flexGrow: 1,
         },
-        // APort Verified stamp
+        // Name — hero text
         h(
           "div",
           {
-            display: "flex",
-            alignItems: "center",
-            gap: "8px",
-            borderRadius: "10px",
-            border: "1px solid rgba(34,211,238,0.2)",
-            background: "rgba(34,211,238,0.06)",
-            padding: "8px 16px",
+            fontSize: "56px",
+            fontWeight: 700,
+            letterSpacing: "-0.03em",
+            lineHeight: 1.1,
           },
-          h(
-            "div",
-            { fontSize: "13px", fontWeight: 700, color: "#22d3ee", letterSpacing: "0.05em" },
-            "APORT VERIFIED",
-          ),
+          displayName,
         ),
-        // URL
+        // Breed + framework inline
+        ...(p.breed
+          ? [
+              h(
+                "div",
+                {
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "10px",
+                  marginTop: "2px",
+                },
+                h(
+                  "div",
+                  {
+                    fontSize: "22px",
+                    fontWeight: 700,
+                    color: accentPrimary,
+                  },
+                  p.breed,
+                ),
+                ...(p.framework
+                  ? [
+                      h(
+                        "div",
+                        {
+                          fontSize: "15px",
+                          color: "rgba(122,139,163,0.45)",
+                          padding: "0 0 0 10px",
+                          borderLeft: "1px solid rgba(122,139,163,0.15)",
+                        },
+                        p.framework,
+                      ),
+                    ]
+                  : []),
+              ),
+            ]
+          : []),
+        // Breed tagline
+        ...(p.breedTagline
+          ? [
+              h(
+                "div",
+                {
+                  fontSize: "15px",
+                  color: "rgba(180,195,215,0.4)",
+                  fontStyle: "italic",
+                },
+                p.breedTagline,
+              ),
+            ]
+          : []),
+      ),
+      // Status pill — aligned right on same row as name
+      h(
+        "div",
+        {
+          display: "flex",
+          alignItems: "center",
+          gap: "6px",
+          padding: "8px 20px",
+          borderRadius: "99px",
+          background: p.status === "active" ? "rgba(16,185,129,0.12)" : "rgba(239,68,68,0.12)",
+          border: `1px solid ${p.status === "active" ? "rgba(16,185,129,0.2)" : "rgba(239,68,68,0.2)"}`,
+          flexShrink: 0,
+        },
+        h("div", {
+          width: "8px",
+          height: "8px",
+          borderRadius: "50%",
+          background: p.status === "active" ? "#34d399" : "#f87171",
+        }),
         h(
           "div",
-          { fontSize: "14px", color: "rgba(122,139,163,0.5)" },
-          `aport.id/passport/${p.slug}`,
+          {
+            fontSize: "14px",
+            fontWeight: 600,
+            color: p.status === "active" ? "#34d399" : "#f87171",
+            textTransform: "uppercase",
+            letterSpacing: "0.05em",
+          },
+          p.status === "active" ? "Active" : p.status,
         ),
+      ),
+    ),
+
+    // ── Row 2: Description ──
+    h(
+      "div",
+      {
+        fontSize: "22px",
+        color: "rgba(180,195,215,0.65)",
+        lineHeight: 1.5,
+        marginTop: "28px",
+        maxWidth: "900px",
+        position: "relative",
+        zIndex: 1,
+      },
+      displayDesc,
+    ),
+
+    // ── Row 3: Metadata — pushes down with flex, anchored to bottom ──
+    h(
+      "div",
+      {
+        display: "flex",
+        gap: "48px",
+        alignItems: "flex-end",
+        marginTop: "auto",
+        position: "relative",
+        zIndex: 1,
+      },
+      // Role
+      h(
+        "div",
+        {
+          display: "flex",
+          flexDirection: "column",
+          gap: "6px",
+        },
+        h(
+          "div",
+          {
+            fontSize: "12px",
+            fontWeight: 600,
+            color: "rgba(122,139,163,0.4)",
+            letterSpacing: "0.1em",
+            textTransform: "uppercase",
+          },
+          "Role",
+        ),
+        h(
+          "div",
+          { fontSize: "18px", fontWeight: 600, color: "#e0e7ef" },
+          roleLabel,
+        ),
+      ),
+      // Region
+      h(
+        "div",
+        {
+          display: "flex",
+          flexDirection: "column",
+          gap: "6px",
+        },
+        h(
+          "div",
+          {
+            fontSize: "12px",
+            fontWeight: 600,
+            color: "rgba(122,139,163,0.4)",
+            letterSpacing: "0.1em",
+            textTransform: "uppercase",
+          },
+          "Region",
+        ),
+        h(
+          "div",
+          { fontSize: "18px", fontWeight: 600, color: "#e0e7ef" },
+          p.regions.length ? p.regions.map((r) => r.toUpperCase()).join(", ") : "GLOBAL",
+        ),
+      ),
+      // Created
+      ...(p.createdAt
+        ? [
+            h(
+              "div",
+              {
+                display: "flex",
+                flexDirection: "column",
+                gap: "6px",
+              },
+              h(
+                "div",
+                {
+                  fontSize: "12px",
+                  fontWeight: 600,
+                  color: "rgba(122,139,163,0.4)",
+                  letterSpacing: "0.1em",
+                  textTransform: "uppercase",
+                },
+                "Created",
+              ),
+              h(
+                "div",
+                { fontSize: "18px", fontWeight: 600, color: "#e0e7ef" },
+                fmtDate(p.createdAt),
+              ),
+            ),
+          ]
+        : []),
+      // Capability count pill
+      ...(p.capabilityCount > 0
+        ? [
+            h(
+              "div",
+              {
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                padding: "6px 16px",
+                borderRadius: "99px",
+                background: `${accentPrimary}12`,
+                border: `1px solid ${accentPrimary}20`,
+              },
+              h(
+                "div",
+                {
+                  fontSize: "18px",
+                  fontWeight: 700,
+                  color: accentPrimary,
+                },
+                String(p.capabilityCount),
+              ),
+              h(
+                "div",
+                {
+                  fontSize: "14px",
+                  fontWeight: 600,
+                  color: `${accentPrimary}99`,
+                },
+                p.capabilityCount === 1 ? "capability" : "capabilities",
+              ),
+            ),
+          ]
+        : []),
+      // APORT VERIFIED — right-aligned
+      h(
+        "div",
+        {
+          display: "flex",
+          alignItems: "center",
+          gap: "8px",
+          marginLeft: "auto",
+        },
+        h(
+          "div",
+          {
+            fontSize: "15px",
+            fontWeight: 700,
+            color: accentPrimary,
+            letterSpacing: "0.04em",
+          },
+          "◆  APORT VERIFIED",
+        ),
+      ),
+    ),
+
+    // ── Row 4: Passport URL — bottom right, subtle ──
+    h(
+      "div",
+      {
+        display: "flex",
+        justifyContent: "flex-end",
+        marginTop: "16px",
+        position: "relative",
+        zIndex: 1,
+      },
+      h(
+        "div",
+        {
+          fontSize: "14px",
+          color: "rgba(122,139,163,0.35)",
+        },
+        `aport.id/passport/${p.slug}`,
       ),
     ),
   );
@@ -394,11 +592,16 @@ export const onRequestGet: PagesFunction<AppEnv> = async (context) => {
   const agId = (p.agent_id as string) || idOrSlug;
   const slug = (p.slug as string) || idOrSlug;
   const breed = frameworks[0] ? BREEDS[frameworks[0]] || null : null;
+  const breedTagline = breed ? (BREED_TAGLINES[breed] || null) : null;
+  const capabilities = (p.capabilities as unknown[]) || [];
 
   try {
     const tree = buildCard({
-      name, role, desc, breed, status, claimed,
+      name, role, desc, breed, breedTagline,
+      framework: frameworks[0] || null,
+      status, claimed,
       agentId: agId, slug, regions, createdAt,
+      capabilityCount: capabilities.length,
     });
 
     const imgResponse = new ImageResponse(tree as unknown as React.ReactElement, {

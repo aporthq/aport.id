@@ -91,134 +91,129 @@ function buildImage(config: PageConfig): El {
       height: "628px",
       display: "flex",
       flexDirection: "column",
-      justifyContent: "center",
       background: "#06090f",
-      padding: "64px 72px",
+      padding: "56px 64px",
       fontFamily: "Inter",
-      color: "#e8ecf1",
+      color: "#f0f4f8",
       position: "relative",
       overflow: "hidden",
     },
     // Ambient glow — top right
     h("div", {
       position: "absolute",
-      top: "-120px",
-      right: "-80px",
-      width: "500px",
-      height: "500px",
+      top: "-200px",
+      right: "-150px",
+      width: "700px",
+      height: "700px",
       borderRadius: "50%",
-      background: "rgba(6,182,212,0.1)",
+      background: "rgba(6,182,212,0.12)",
     }),
     // Ambient glow — bottom left
     h("div", {
       position: "absolute",
-      bottom: "-100px",
-      left: "-60px",
+      bottom: "-120px",
+      left: "-80px",
       width: "400px",
       height: "400px",
       borderRadius: "50%",
-      background: "rgba(6,182,212,0.05)",
+      background: "rgba(6,182,212,0.06)",
     }),
-    // Content
+
+    // ── Row 1: Accent label ──
     h(
       "div",
       {
         display: "flex",
-        flexDirection: "column",
+        alignItems: "center",
+        gap: "10px",
+        marginBottom: "28px",
         position: "relative",
         zIndex: 1,
       },
-      // Top line — accent label
       h(
         "div",
         {
+          width: "32px",
+          height: "32px",
+          borderRadius: "8px",
+          background: "rgba(6,182,212,0.15)",
+          border: "1px solid rgba(6,182,212,0.25)",
           display: "flex",
           alignItems: "center",
-          gap: "10px",
-          marginBottom: "32px",
-        },
-        // Shield icon (simplified)
-        h(
-          "div",
-          {
-            width: "32px",
-            height: "32px",
-            borderRadius: "8px",
-            background: "rgba(6,182,212,0.15)",
-            border: "1px solid rgba(6,182,212,0.25)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: "16px",
-            color: "#22d3ee",
-            fontWeight: 700,
-          },
-          "◆",
-        ),
-        h(
-          "div",
-          {
-            fontSize: "14px",
-            fontWeight: 600,
-            color: "#22d3ee",
-            letterSpacing: "0.06em",
-            textTransform: "uppercase",
-          },
-          config.accent,
-        ),
-      ),
-      // Title
-      h(
-        "div",
-        {
-          fontSize: "56px",
+          justifyContent: "center",
+          fontSize: "16px",
+          color: "#22d3ee",
           fontWeight: 700,
-          letterSpacing: "-0.03em",
-          lineHeight: 1.1,
-          marginBottom: "20px",
-          maxWidth: "900px",
         },
-        config.title,
+        "◆",
       ),
-      // Subtitle
       h(
         "div",
         {
-          fontSize: "22px",
-          color: "rgba(122,139,163,0.8)",
-          lineHeight: 1.5,
-          maxWidth: "700px",
+          fontSize: "14px",
+          fontWeight: 600,
+          color: "#22d3ee",
+          letterSpacing: "0.06em",
+          textTransform: "uppercase",
         },
-        config.subtitle,
+        config.accent,
       ),
     ),
-    // Bottom bar
+
+    // ── Row 2: Title ──
     h(
       "div",
       {
-        position: "absolute",
-        bottom: "48px",
-        left: "72px",
-        right: "72px",
+        fontSize: "56px",
+        fontWeight: 700,
+        letterSpacing: "-0.03em",
+        lineHeight: 1.1,
+        maxWidth: "900px",
+        position: "relative",
+        zIndex: 1,
+      },
+      config.title,
+    ),
+
+    // ── Row 3: Subtitle ──
+    h(
+      "div",
+      {
+        fontSize: "22px",
+        color: "rgba(180,195,215,0.65)",
+        lineHeight: 1.5,
+        maxWidth: "750px",
+        marginTop: "24px",
+        position: "relative",
+        zIndex: 1,
+      },
+      config.subtitle,
+    ),
+
+    // ── Row 4: Footer — pushed to bottom via flex ──
+    h(
+      "div",
+      {
         display: "flex",
         justifyContent: "space-between",
         alignItems: "center",
+        marginTop: "auto",
+        position: "relative",
+        zIndex: 1,
       },
-      // Logo
       h(
         "div",
         {
           fontSize: "18px",
           fontWeight: 700,
-          color: "rgba(232,236,241,0.6)",
+          color: "rgba(240,244,248,0.5)",
           letterSpacing: "-0.01em",
         },
         "aport.id",
       ),
-      // URL
       h(
         "div",
-        { fontSize: "15px", color: "rgba(122,139,163,0.4)" },
+        { fontSize: "14px", color: "rgba(122,139,163,0.35)" },
         "aport.id",
       ),
     ),

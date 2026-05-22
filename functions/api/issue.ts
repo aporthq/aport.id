@@ -144,7 +144,10 @@ export const onRequestPost: PagesFunction<AppEnv> = async (context) => {
     : frameworkPreset?.regions?.length
       ? frameworkPreset.regions
       : ["global"];
-  const slug = body.slug || slugify(name);
+  const requestedSlug =
+    typeof body.slug === "string" && body.slug.trim()
+      ? slugify(body.slug)
+      : undefined;
 
   // Build capabilities and limits, optionally including deliverable enforcement
   const capabilities = frameworkPreset?.capabilities?.length
@@ -205,7 +208,7 @@ export const onRequestPost: PagesFunction<AppEnv> = async (context) => {
       sendClaimEmail: true,
       capabilities,
       limits,
-      slug,
+      slug: requestedSlug,
     });
 
     if (!result.success || !result.data) {
@@ -225,7 +228,7 @@ export const onRequestPost: PagesFunction<AppEnv> = async (context) => {
     }
 
     const agentId = result.data.passportId;
-    const passportSlug = result.data.slug || slug;
+    const passportSlug = result.data.slug || requestedSlug || slugify(name);
     const setupKey = result.data.setup_key;
 
     if (!agentId) {

@@ -11,7 +11,10 @@ import type { AppEnv } from "../lib/types";
 import { getCorsHeaders, handleCorsPreflightRequest } from "../lib/cors";
 import { jsonResponse, errorResponse } from "../lib/response";
 import { createAPortService } from "../lib/services/aport";
-import { DEFAULT_CAPABILITIES, DEFAULT_LIMITS } from "../lib/default-capabilities";
+import {
+  DEFAULT_CAPABILITIES,
+  DEFAULT_LIMITS,
+} from "../lib/default-capabilities";
 import { slugify } from "../lib/slug";
 import { checkRateLimit, getClientIp } from "../lib/rate-limit";
 
@@ -26,10 +29,10 @@ interface DeliverableConfig {
 }
 
 interface IssueRequest {
-  name: string;
+  name?: string;
   slug?: string;
-  description: string;
-  role: "agent" | "assistant" | "tool" | "service";
+  description?: string;
+  role?: string;
   email: string;
   framework?: string[];
   regions?: string[];
@@ -81,8 +84,36 @@ export const onRequestPost: PagesFunction<AppEnv> = async (context) => {
     return errorResponse("Invalid JSON body", 400, cors);
   }
 
-  // Validate required fields
-  if (!body.name || body.name.length < 1 || body.name.length > 100) {
+  const aport = createAPortService(env);
+  const requestedFramework = body.framework?.find(
+    (framework) => typeof framework === "string" && framework.trim(),
+  );
+  let frameworkPreset = null as Awaited<
+    ReturnType<typeof aport.getFrameworkPassportPreset>
+  >["data"] | null;
+
+  if (requestedFramework && /^[A-Za-z0-9-]+$/.test(requestedFramework)) {
+    const presetResult = await aport.getFrameworkPassportPreset(requestedFramework);
+    if (presetResult.success && presetResult.data) {
+      frameworkPreset = presetResult.data;
+    } else {
+      console.warn("[issue] Framework preset unavailable; using defaults", {
+        framework: requestedFramework,
+        status: presetResult.error?.status,
+        message: presetResult.error?.message,
+      });
+    }
+  }
+
+  const name = (body.name || frameworkPreset?.name || "").trim();
+  const description = (
+    body.description ||
+    frameworkPreset?.description ||
+    ""
+  ).trim();
+
+  // Validate required fields after framework defaults are applied.
+  if (!name || name.length < 1 || name.length > 100) {
     return errorResponse(
       "Agent name is required (1-100 characters)",
       400,
@@ -90,9 +121,9 @@ export const onRequestPost: PagesFunction<AppEnv> = async (context) => {
     );
   }
   if (
-    !body.description ||
-    body.description.length < 10 ||
-    body.description.length > 1000
+    !description ||
+    description.length < 10 ||
+    description.length > 1000
   ) {
     return errorResponse(
       "Description is required (10-1000 characters)",
@@ -104,14 +135,27 @@ export const onRequestPost: PagesFunction<AppEnv> = async (context) => {
     return errorResponse("Valid email is required", 400, cors);
   }
 
-  const role = body.role || "agent";
-  const regions = body.regions?.length ? body.regions : ["global"];
-  const slug = body.slug || slugify(body.name);
-  const aport = createAPortService(env);
+  const role = (body.role || frameworkPreset?.role || "agent").trim();
+  const framework = body.framework?.length
+    ? body.framework
+    : frameworkPreset?.framework || [];
+  const regions = body.regions?.length
+    ? body.regions
+    : frameworkPreset?.regions?.length
+      ? frameworkPreset.regions
+      : ["global"];
+  const slug = body.slug || slugify(name);
 
   // Build capabilities and limits, optionally including deliverable enforcement
-  const capabilities = [...DEFAULT_CAPABILITIES];
-  const limits: Record<string, any> = { ...DEFAULT_LIMITS };
+  const capabilities = frameworkPreset?.capabilities?.length
+    ? frameworkPreset.capabilities.map((capability) => ({
+        ...capability,
+        params: capability.params ? { ...capability.params } : undefined,
+      }))
+    : [...DEFAULT_CAPABILITIES];
+  const limits: Record<string, any> = frameworkPreset
+    ? { ...frameworkPreset.limits }
+    : { ...DEFAULT_LIMITS };
 
   if (body.deliverable) {
     const d = body.deliverable;
@@ -142,7 +186,7 @@ export const onRequestPost: PagesFunction<AppEnv> = async (context) => {
     const result = await aport.createBuilderPassport({
       builderId: `aportid_${Date.now()}`,
       email: body.email,
-      displayName: body.name,
+      displayName: name,
       kycCompleted: false,
       verificationProof: {
         verification_id: `ver_aportid_${Date.now()}`,
@@ -151,10 +195,11 @@ export const onRequestPost: PagesFunction<AppEnv> = async (context) => {
       metadata: {
         provider: "aport-id",
         role,
-        framework: body.framework || [],
+        framework,
         links: body.links || {},
-        description: body.description,
+        description,
         regions,
+        preset_id: frameworkPreset?.id,
       },
       regions,
       sendClaimEmail: true,
@@ -181,6 +226,7 @@ export const onRequestPost: PagesFunction<AppEnv> = async (context) => {
 
     const agentId = result.data.passportId;
     const passportSlug = result.data.slug || slug;
+    const setupKey = result.data.setup_key;
 
     if (!agentId) {
       return errorResponse("No passport ID returned from APort", 502, cors);
@@ -192,9 +238,9 @@ export const onRequestPost: PagesFunction<AppEnv> = async (context) => {
         const galleryEntry = JSON.stringify({
           agent_id: agentId,
           slug: passportSlug,
-          name: body.name,
+          name,
           role,
-          framework: body.framework || [],
+          framework,
           regions,
           created_at: new Date().toISOString(),
         });
@@ -204,7 +250,10 @@ export const onRequestPost: PagesFunction<AppEnv> = async (context) => {
         const indexRaw = await env.APORT_ID_KV.get("gallery:index");
         const index: string[] = indexRaw ? JSON.parse(indexRaw) : [];
         index.unshift(agentId);
-        await env.APORT_ID_KV.put("gallery:index", JSON.stringify(index.slice(0, 1000)));
+        await env.APORT_ID_KV.put(
+          "gallery:index",
+          JSON.stringify(index.slice(0, 1000)),
+        );
 
         // Increment count
         const countRaw = await env.APORT_ID_KV.get("stats:count");
@@ -223,6 +272,11 @@ export const onRequestPost: PagesFunction<AppEnv> = async (context) => {
         claimed: result.data.claimed ?? false,
         passport_url: `https://aport.id/passport/${passportSlug}`,
         claim_email_sent: true,
+        ...(setupKey?.key && {
+          api_key: setupKey.key,
+          api_key_id: setupKey.key_id,
+          api_key_scopes: setupKey.scopes,
+        }),
       },
       201,
       cors,

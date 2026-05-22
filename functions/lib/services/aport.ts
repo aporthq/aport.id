@@ -19,9 +19,31 @@ interface APortResponse<T = any> {
   };
 }
 
+interface PassportSetupKey {
+  key_id: string;
+  key: string;
+  scopes: string[];
+}
+
+export interface FrameworkPassportPreset {
+  id: string;
+  name: string;
+  role: string;
+  description: string;
+  framework: string[];
+  categories?: string[];
+  capabilities: Array<{
+    id: string;
+    params?: Record<string, any>;
+  }>;
+  limits: Record<string, any>;
+  regions: string[];
+  status?: string;
+}
+
 interface PassportData {
   name: string;
-  role: "agent" | "assistant" | "tool" | "service";
+  role: string;
   description: string;
   regions?: string[];
   contact?: string;
@@ -175,6 +197,189 @@ export class APortService {
       };
     }
   }
+  // ============================================================================
+  // PASSPORT SETUP KEY
+  // ============================================================================
+
+  async getFrameworkPassportPreset(
+    framework?: string,
+  ): Promise<APortResponse<FrameworkPassportPreset>> {
+    const normalizedFramework = framework?.trim();
+    if (!normalizedFramework) {
+      return {
+        success: false,
+        error: { message: "Framework is required" },
+      };
+    }
+
+    if (!/^[A-Za-z0-9-]+$/.test(normalizedFramework)) {
+      return {
+        success: false,
+        error: { message: "Invalid framework id" },
+      };
+    }
+
+    try {
+      const res = await fetch(
+        `${this.baseUrl}/api/public/framework-passport-presets/${encodeURIComponent(
+          normalizedFramework,
+        )}`,
+        { method: "GET", headers: { Accept: "application/json" } },
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        return {
+          success: false,
+          error: {
+            message:
+              (data as { message?: string })?.message ||
+              "Failed to fetch framework passport preset",
+            status: res.status,
+            details: data,
+          },
+        };
+      }
+
+      const preset = ((data as any)?.data ?? data) as Partial<FrameworkPassportPreset>;
+      if (
+        typeof preset.id !== "string" ||
+        typeof preset.name !== "string" ||
+        !Array.isArray(preset.capabilities) ||
+        typeof preset.limits !== "object" ||
+        preset.limits === null
+      ) {
+        return {
+          success: false,
+          error: {
+            message: "Framework passport preset missing from API response",
+            status: res.status,
+            details: data,
+          },
+        };
+      }
+
+      return {
+        success: true,
+        data: {
+          id: preset.id,
+          name: preset.name,
+          role: typeof preset.role === "string" ? preset.role : "agent",
+          description:
+            typeof preset.description === "string" ? preset.description : "AI agent passport",
+          framework: Array.isArray(preset.framework)
+            ? preset.framework.filter(
+                (item): item is string => typeof item === "string",
+              )
+            : [normalizedFramework],
+          categories: Array.isArray(preset.categories)
+            ? preset.categories.filter(
+                (item): item is string => typeof item === "string",
+              )
+            : [],
+          capabilities: preset.capabilities.filter(
+            (capability): capability is { id: string; params?: Record<string, any> } =>
+              capability && typeof capability.id === "string",
+          ),
+          limits: preset.limits as Record<string, any>,
+          regions: Array.isArray(preset.regions)
+            ? preset.regions.filter(
+                (item): item is string => typeof item === "string",
+              )
+            : ["US", "CA", "EU"],
+          status: typeof preset.status === "string" ? preset.status : "active",
+        },
+      };
+    } catch (e) {
+      return { success: false, error: { message: String(e) } };
+    }
+  }
+
+  /**
+   * Create a setup key for an agent passport
+   * This is used to create a setup key for an agent passport
+   *
+   * @param agentId The ID of the agent passport
+   * @param name The name of the setup key
+   * @returns The setup key
+   */
+  async createPassportSetupKey(
+    agentId: string,
+    name?: string,
+  ): Promise<APortResponse<PassportSetupKey>> {
+    if (!agentId?.trim()) {
+      return {
+        success: false,
+        error: { message: "Passport ID is required to create a setup key" },
+      };
+    }
+
+    if (!this.apiKey) {
+      return {
+        success: false,
+        error: { message: "APORT_API_KEY is required to create a setup key" },
+      };
+    }
+
+    try {
+      const res = await fetch(
+        `${this.baseUrl}/api/passports/${agentId}/setup-key`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${this.apiKey}`,
+          },
+          body: JSON.stringify({
+            name: name || `Quick start for ${agentId}`,
+          }),
+        },
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        return {
+          success: false,
+          error: {
+            message:
+              (data as { message?: string })?.message ||
+              "Failed to create setup key",
+            status: res.status,
+          },
+        };
+      }
+      const key = ((data as any)?.data ?? data) as {
+        key_id?: unknown;
+        key?: unknown;
+        scopes?: unknown;
+      };
+      if (typeof key.key_id !== "string" || typeof key.key !== "string") {
+        return {
+          success: false,
+          error: {
+            message: "Setup key missing from API response",
+            status: res.status,
+            details: data,
+          },
+        };
+      }
+
+      const scopes = Array.isArray(key.scopes)
+        ? key.scopes.filter(
+            (scope): scope is string => typeof scope === "string",
+          )
+        : [];
+
+      return {
+        success: true,
+        data: {
+          key_id: key.key_id,
+          key: key.key,
+          scopes: scopes.length ? scopes : ["read"],
+        },
+      };
+    } catch (e) {
+      return { success: false, error: { message: String(e) } };
+    }
+  }
 
   // ============================================================================
   // BUILDER PASSPORT MANAGEMENT
@@ -208,6 +413,7 @@ export class APortService {
       claim_link?: string;
       claim_token?: string;
       slug?: string;
+      setup_key?: PassportSetupKey;
     }>
   > {
     const {
@@ -239,7 +445,7 @@ export class APortService {
 
     const passportData: PassportData = {
       name: displayName || email.split("@")[0],
-      role: (metadata?.role as PassportData["role"]) || "agent",
+      role: typeof metadata?.role === "string" ? metadata.role : "agent",
       description:
         metadata?.description || `AI ${metadata?.role || "agent"} passport`,
       regions,
@@ -340,6 +546,19 @@ export class APortService {
       const claimed =
         passport.claimed !== false && responseData.claimed !== false;
 
+      let setupKey: APortResponse<PassportSetupKey> | null = null;
+      if (passportId) {
+        setupKey = await this.createPassportSetupKey(passportId);
+        if (!setupKey.success) {
+          console.warn("[APort] Error creating setup key:", setupKey.error);
+        } else {
+          console.log("[APort] Setup key created:", {
+            key_id: setupKey.data?.key_id,
+            scopes: setupKey.data?.scopes,
+          });
+        }
+      }
+
       return {
         success: true,
         data: {
@@ -355,6 +574,7 @@ export class APortService {
           ...(responseData.claim_token != null
             ? { claim_token: String(responseData.claim_token) }
             : {}),
+          ...(setupKey?.success && { setup_key: setupKey.data }),
         },
       };
     } catch (error) {

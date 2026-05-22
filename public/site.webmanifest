@@ -1,7 +1,7 @@
 {
   "name": "aport.id",
   "short_name": "aport.id",
-  "description": "Give your AI agent an identity — create a real APort passport in 60 seconds",
+  "description": "Create an AI agent passport and setup key for APort guardrails in 60 seconds",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#09090b",

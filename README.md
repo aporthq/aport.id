@@ -1,56 +1,52 @@
 # aport-id — Give Your Agent an ID
 
-Your agent exists in your system. APort gives it an identity it can carry anywhere.
+Your agent exists in your system. APort gives it an identity it can carry anywhere and a control plane that governs what it can do.
 
-`aport-id` is a CLI that issues real [APort](https://aport.id) passports — DID-compliant, VC-interoperable credentials for AI agents. Create a passport in 60 seconds from your terminal.
+`aport-id` issues real [APort](https://aport.id) passports — DID-compliant, VC-interoperable credentials for AI agents. For pre-action authorization, guardrails, and audit, use the canonical APort guardrail installer.
 
 ## Quick Start
 
 ```bash
-npx aport-id
+npx @aporthq/aport-agent-guardrails claude-code
 ```
 
-The interactive wizard walks you through it:
+The installer can create a hosted passport, create a narrow setup key, and configure the selected framework in one flow.
 
-```
-✓ Passport issued for ARIA
+Use another supported framework by changing the argument:
 
-  Username: @aria
-  Role:     Agent
-  Model:    Gemini Flash 2.5 (Whippet)
-  Born:     March 12, 2026
-  Regions:  Global
-
-  Passport: https://aport.id/passport/aria
-
-  📧 Claim email sent to you@email.com
+```bash
+npx @aporthq/aport-agent-guardrails cursor
 ```
 
 ## Non-Interactive Usage
 
-Pass flags to skip the wizard — useful for CI or scripting:
+Use environment variables to skip prompts — useful for device management tools and scripts:
 
 ```bash
-npx aport-id --name ARIA \
-  --description "Research assistant that browses the web" \
-  --email you@email.com \
-  --framework gpt-4o \
-  --role agent
+APORT_OWNER_EMAIL="you@email.com" \
+APORT_QUICK_HOSTED=1 \
+npx --yes @aporthq/aport-agent-guardrails claude-code --non-interactive
 ```
 
-## CLI Flags
+The main APort domain also exposes a thin curl shim for teams that prefer install URLs:
 
-| Flag | Description | Default |
+```bash
+curl -fsSL https://aport.io/install.sh | bash -s -- claude-code
+```
+
+For passport-only issuance without framework guardrails, use the browser flow at [aport.id/create](https://aport.id/create) or call `POST https://aport.id/api/issue`.
+
+## Passport-Only API Fields
+
+| Field | Description | Default |
 |------|-------------|---------|
-| `--name` | Agent name (required for non-interactive) | — |
-| `--description` | What does your agent do? (required, min 10 chars) | — |
-| `--email` | Your email for claim flow (required) | — |
-| `--role` | `agent` \| `assistant` \| `tool` \| `service` | `agent` |
-| `--framework` | Framework ID (e.g. `gpt-4o`, `claude-opus`, `gemini-flash-2.5`) | — |
-| `--regions` | Comma-separated: `us,eu,ca,ap,global` | `global` |
-| `--no-gallery` | Don't show in public gallery | — |
-| `--json` | Output JSON only (for scripting) | — |
-| `-h, --help` | Show help | — |
+| `name` | Agent name; optional when `framework` maps to a preset | — |
+| `description` | What does your agent do? Optional when `framework` maps to a preset | — |
+| `email` | Your email for claim flow | — |
+| `role` | Agent role; framework presets provide this when omitted | `agent` |
+| `framework` | Framework IDs, e.g. `claude-code`, `cursor`, `openclaw` | — |
+| `regions` | Region list, e.g. `US`, `CA`, `EU`, `global` | Preset or `global` |
+| `showInGallery` | Show/hide from public gallery | `true` |
 
 ## Badge
 
@@ -87,7 +83,7 @@ Passports are issued through the [APort](https://aport.io) platform. `aport-id` 
 
 - **Web app:** [aport.id](https://aport.id) — create a passport in the browser
 - **Gallery:** [aport.id/gallery](https://aport.id/gallery) — browse public agent passports
-- **APort platform:** [aport.io](https://aport.io) — dashboard, guardrails, and The Network
+- **APort platform:** [aport.io](https://aport.io) — AI agent passport control plane, guardrails, and audit
 - **npm:** [@aporthq](https://www.npmjs.com/org/aporthq)
 
 ## License

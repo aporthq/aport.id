@@ -1,12 +1,17 @@
 {
   "name": "aport-id",
   "version": "0.1.0",
-  "description": "Give your AI agent an identity — create a real APort passport in 60 seconds",
+  "description": "Create an AI agent passport and setup key for APort guardrails in 60 seconds",
   "keywords": [
     "ai",
     "agent",
     "identity",
     "passport",
+    "guardrails",
+    "pre-action authorization",
+    "claude code",
+    "cursor",
+    "mcp",
     "did",
     "aport",
     "cli"

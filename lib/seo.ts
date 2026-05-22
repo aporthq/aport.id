@@ -11,9 +11,9 @@ import type { Metadata } from "next";
 
 export const SITE = {
   name: "aport.id",
-  title: "aport.id - Give Your Agent an ID",
+  title: "aport.id - Create an AI Agent Passport in 60 Seconds",
   description:
-    "Every agent deserves a name, an origin, and an identity it can carry anywhere. Create a real APort passport in 60 seconds.",
+    "Create a no-login AI agent passport and setup key in 60 seconds, then install APort guardrails for Claude Code, Cursor, OpenClaw, MCP, and agentic work.",
   url: process.env.NEXT_PUBLIC_APP_URL || "https://aport.id",
   twitter: "@aport_io",
   locale: "en_US",
@@ -140,7 +140,7 @@ export function jsonLdSoftwareApp(): Record<string, unknown> {
     applicationCategory: "DeveloperApplication",
     operatingSystem: "Any",
     description:
-      "Issue verifiable DID-compliant identity passports for AI agents in 60 seconds.",
+      "Issue AI agent passports and setup keys in 60 seconds, then connect them to APort's control plane for pre-action authorization, guardrails, and audit.",
     offers: {
       "@type": "Offer",
       price: "0",

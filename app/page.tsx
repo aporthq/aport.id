@@ -45,11 +45,11 @@ export default function HomePage() {
       <header className="pt-8 sm:pt-12 pb-4 sm:pb-5 animate-fade-in">
         <h1 className="text-[2.5rem] font-bold tracking-tight leading-[1.1] sm:text-[3.25rem]">
           Give Your Agent <span className="text-accent">An Identity</span> - and
-          a job to do.
+          the guardrails to use it.
         </h1>
         <p className="mt-2 text-base text-muted-foreground leading-relaxed sm:text-[1.0625rem] text-center">
-          A name, an origin, and a deliverable contract in 60&nbsp;seconds,
-          no&nbsp;account&nbsp;required.
+          A passport, setup key, and path to APort guardrails in
+          60&nbsp;seconds, no&nbsp;account&nbsp;required.
         </p>
       </header>
 
@@ -59,7 +59,7 @@ export default function HomePage() {
         style={{ animationDelay: "0.1s" }}
       >
         {/* CLI alternative */}
-        <NpxLine />
+        <QuickStartLine />
 
         <div className="relative rounded-2xl border border-white/[0.06] bg-white/[0.025] backdrop-blur-2xl shadow-[0_8px_64px_rgba(0,0,0,0.4)]">
           {/* Top glass edge */}
@@ -102,8 +102,8 @@ export default function HomePage() {
             },
             {
               step: "03",
-              title: "Share it anywhere",
-              desc: "A shareable page, JSON endpoint, and README badge.",
+              title: "Use it with guardrails",
+              desc: "Install APort for Claude Code, Cursor, OpenClaw, MCP, or custom agents.",
             },
           ].map((item) => (
             <div
@@ -176,13 +176,14 @@ export default function HomePage() {
   );
 }
 
-// ─── npx aport-id line ────────────────────────────────────────────────────
+// ─── Quick start line ──────────────────────────────────────────────────────
 
-function NpxLine() {
+function QuickStartLine() {
   const [copied, setCopied] = useState(false);
+  const command = "npx @aporthq/aport-agent-guardrails claude-code";
 
   const copy = () => {
-    navigator.clipboard.writeText("npx aport-id");
+    navigator.clipboard.writeText(command);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -194,7 +195,7 @@ function NpxLine() {
         className="inline-flex items-center gap-2 text-sm text-muted-foreground/50 hover:text-muted-foreground transition-colors group"
       >
         <span className="font-mono bg-white/[0.04] border border-white/[0.06] rounded-md px-2.5 py-1 group-hover:bg-white/[0.07] group-hover:border-white/[0.1] transition-all inline-flex items-center gap-2">
-          npx aport-id
+          {command}
           {copied ? (
             <Check className="size-3 text-accent" />
           ) : (

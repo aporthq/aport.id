@@ -38,6 +38,7 @@ const STATIC_PAGES = [
   { loc: "/what-breed-is-my-ai/", changefreq: "weekly", priority: "0.8" },
   { loc: "/manage/", changefreq: "monthly", priority: "0.7" },
   { loc: "/skill", changefreq: "monthly", priority: "0.6" },
+  { loc: "/llms.txt", changefreq: "monthly", priority: "0.6" },
   { loc: "/agents.txt", changefreq: "monthly", priority: "0.5" },
 ];
 

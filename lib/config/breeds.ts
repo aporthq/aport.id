@@ -442,7 +442,7 @@ export const FRAMEWORK_OPTIONS: FrameworkOption[] = [
       "The Husky was born for the Arctic — thick coat, tireless endurance, and it howls at the moon because it wants to. OpenClaw is the open-source guardrails framework that keeps AI agents in line. Policies, permissions, audit trails. It pulls the heavy compliance load so your agent can run free.",
     tags: ["guardrails", "open-source", "compliance", "safety", "policies"],
     socialCopy: "My AI agent's breed is Husky 🐕 (OpenClaw) — built for the cold, pulls heavy loads.",
-    funFact: "OpenClaw provides the guardrails layer for APort-verified agents across The Network.",
+    funFact: "OpenClaw provides a guardrails layer for APort-verified agents in agentic workflows.",
   },
   {
     id: "other",

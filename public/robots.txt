@@ -3,6 +3,7 @@ Allow: /
 
 # Agent directory — AI agents start here
 # See also: https://aport.id/agents.txt
+# LLM-readable summary: https://aport.id/llms.txt
 
 Sitemap: https://aport.id/sitemap.xml
 

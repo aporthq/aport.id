@@ -230,10 +230,60 @@ describe("POST /api/issue", () => {
     expect(issueBody.description).toContain("Claude Code");
     expect(issueBody.framework).toEqual(["claude-code"]);
     expect(issueBody.regions).toEqual(["US", "CA", "EU"]);
+    expect(issueBody.slug).toBeUndefined();
     expect(issueBody.capabilities.map((capability: any) => capability.id)).toEqual(
       ["system.command.execute", "data.file.read"],
     );
     expect(issueBody.limits.allowed_commands).toEqual(["*"]);
+  });
+
+  it("passes only explicit slugs so generated quick-start usernames stay backend-unique", async () => {
+    mockFetch.mockImplementation(async (url: string) => {
+      if (url.includes("/api/passports/ap_slug/setup-key")) {
+        return new Response(
+          JSON.stringify({
+            data: {
+              key_id: "key_slug",
+              key: "apk_slug_secret",
+              scopes: ["read"],
+            },
+          }),
+          { status: 201, headers: { "Content-Type": "application/json" } },
+        );
+      }
+
+      return new Response(
+        JSON.stringify({
+          data: {
+            agent_id: "ap_slug",
+            slug: "my-custom-claude-agent",
+            claimed: false,
+          },
+        }),
+        { status: 201, headers: { "Content-Type": "application/json" } },
+      );
+    });
+
+    const ctx = createContext({
+      email: "dev@example.com",
+      framework: ["claude-code"],
+      name: "Claude Code Agent",
+      description: "Claude Code quick-start passport with explicit slug",
+      slug: "My Custom Claude Agent",
+      showInGallery: false,
+    });
+
+    const res = await onRequestPost(ctx);
+    const body = (await res.json()) as { slug: string };
+
+    expect(res.status).toBe(201);
+    expect(body.slug).toBe("my-custom-claude-agent");
+
+    const issueCall = mockFetch.mock.calls.find(([url]) =>
+      String(url).includes("/api/orgs/ap_org_test/issue"),
+    );
+    const issueBody = JSON.parse(issueCall?.[1]?.body as string);
+    expect(issueBody.slug).toBe("my-custom-claude-agent");
   });
 
   it("stores gallery entry in KV when showInGallery is true", async () => {

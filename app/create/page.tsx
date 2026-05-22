@@ -21,8 +21,8 @@ export default function CreatePage() {
           Create an Agent <span className="text-accent">Passport</span>
         </h1>
         <p className="mt-2 text-base text-muted-foreground leading-relaxed sm:text-[1.0625rem] text-center">
-          A verifiable DID credential with identity, capabilities, and a
-          deliverable contract. No&nbsp;account&nbsp;required.
+          A verifiable passport with identity, capabilities, and an optional
+          setup key for APort guardrails. No&nbsp;account&nbsp;required.
         </p>
       </header>
 
@@ -31,7 +31,7 @@ export default function CreatePage() {
         className="pb-6 animate-slide-up"
         style={{ animationDelay: "0.1s" }}
       >
-        <NpxLine />
+        <QuickStartLine />
       </section>
 
       {/* Creation form */}
@@ -82,6 +82,10 @@ export default function CreatePage() {
               title: "API key on claim",
               desc: "When you claim your passport, an API key is generated so your agent can read its own identity.",
             },
+            {
+              title: "Guardrail-ready setup",
+              desc: "Use the passport with APort for Claude Code, Cursor, OpenClaw, MCP, or custom pre-action authorization.",
+            },
           ].map((item) => (
             <div
               key={item.title}
@@ -103,13 +107,14 @@ export default function CreatePage() {
   );
 }
 
-// ─── npx aport-id line ────────────────────────────────────────────────────
+// ─── Quick start line ──────────────────────────────────────────────────────
 
-function NpxLine() {
+function QuickStartLine() {
   const [copied, setCopied] = useState(false);
+  const command = "npx @aporthq/aport-agent-guardrails claude-code";
 
   const copy = () => {
-    navigator.clipboard.writeText("npx aport-id");
+    navigator.clipboard.writeText(command);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -121,7 +126,7 @@ function NpxLine() {
         className="inline-flex items-center gap-2 text-sm text-muted-foreground/50 hover:text-muted-foreground transition-colors group"
       >
         <span className="font-mono bg-white/[0.04] border border-white/[0.06] rounded-md px-2.5 py-1 group-hover:bg-white/[0.07] group-hover:border-white/[0.1] transition-all inline-flex items-center gap-2">
-          npx aport-id
+          {command}
           {copied ? (
             <Check className="size-3 text-accent" />
           ) : (

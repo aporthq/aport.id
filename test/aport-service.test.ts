@@ -105,38 +105,121 @@ describe("APortService.getPassport", () => {
   });
 });
 
-describe("APortService.createBuilderPassport", () => {
-  it("sends correct payload to org issuance endpoint", async () => {
+describe("APortService.getFrameworkPassportPreset", () => {
+  it("fetches and validates public framework presets", async () => {
     mockFetch.mockResolvedValue(
       new Response(
         JSON.stringify({
-          data: { agent_id: "ap_new123", did: "did:aport:123", claimed: false },
+          id: "claude-code",
+          name: "Claude Code Agent",
+          role: "Claude Code agent",
+          description: "General-purpose Claude Code agent",
+          framework: ["claude-code"],
+          capabilities: [{ id: "system.command.execute", params: {} }],
+          limits: { allowed_commands: ["*"] },
+          regions: ["US", "CA", "EU"],
         }),
-        { status: 201, headers: { "Content-Type": "application/json" } },
+        { status: 200, headers: { "Content-Type": "application/json" } },
       ),
     );
 
     const service = createAPortService(mockEnv);
-    const result = await service.createBuilderPassport({
-      builderId: "builder_1",
-      email: "test@example.com",
-      displayName: "TestAgent",
-      kycCompleted: false,
-      sendClaimEmail: true,
-    });
+    const result = await service.getFrameworkPassportPreset("claude-code");
 
     expect(result.success).toBe(true);
-    expect(result.data?.passportId).toBe("ap_new123");
+    expect(result.data?.id).toBe("claude-code");
+    expect(result.data?.limits.allowed_commands).toEqual(["*"]);
+    expect(mockFetch.mock.calls[0][0]).toContain(
+      "/api/public/framework-passport-presets/claude-code",
+    );
+  });
 
-    // Check correct endpoint
-    const url = mockFetch.mock.calls[0][0] as string;
-    expect(url).toContain(`/api/orgs/${mockEnv.APORT_ORG_ID}/issue`);
+  it("rejects malformed framework preset responses", async () => {
+    mockFetch.mockResolvedValue(
+      new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
 
-    // Check body
-    const body = JSON.parse(mockFetch.mock.calls[0][1]?.body as string);
-    expect(body.pending_owner.email).toBe("test@example.com");
-    expect(body.send_claim_email).toBe(true);
-    expect(body.role).toBe("agent");
+    const service = createAPortService(mockEnv);
+    const result = await service.getFrameworkPassportPreset("claude-code");
+
+    expect(result.success).toBe(false);
+    expect(result.error?.message).toContain("missing");
+  });
+});
+
+describe("APortService.createBuilderPassport", () => {
+  it("sends correct payload to org issuance endpoint", async () => {
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    mockFetch.mockImplementation(async (url: string) => {
+      if (url.includes("/api/passports/ap_new123/setup-key")) {
+        return new Response(
+          JSON.stringify({
+            data: {
+              key_id: "key_setup_123",
+              key: "apk_secret_setup_key",
+              scopes: ["read"],
+            },
+          }),
+          { status: 201, headers: { "Content-Type": "application/json" } },
+        );
+      }
+
+      return new Response(
+        JSON.stringify({
+          data: { agent_id: "ap_new123", did: "did:aport:123", claimed: false },
+        }),
+        { status: 201, headers: { "Content-Type": "application/json" } },
+      );
+    });
+
+    const service = createAPortService(mockEnv);
+    try {
+      const result = await service.createBuilderPassport({
+        builderId: "builder_1",
+        email: "test@example.com",
+        displayName: "TestAgent",
+        kycCompleted: false,
+        sendClaimEmail: true,
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.data?.passportId).toBe("ap_new123");
+      expect(result.data?.setup_key?.key_id).toBe("key_setup_123");
+      expect(result.data?.setup_key?.key).toBe("apk_secret_setup_key");
+
+      // Check correct endpoint
+      const url = mockFetch.mock.calls[0][0] as string;
+      expect(url).toContain(`/api/orgs/${mockEnv.APORT_ORG_ID}/issue`);
+
+      // Check body
+      const body = JSON.parse(mockFetch.mock.calls[0][1]?.body as string);
+      expect(body.pending_owner.email).toBe("test@example.com");
+      expect(body.send_claim_email).toBe(true);
+      expect(body.role).toBe("agent");
+      expect(logSpy.mock.calls.flat().join(" ")).not.toContain(
+        "apk_secret_setup_key",
+      );
+    } finally {
+      logSpy.mockRestore();
+    }
+  });
+
+  it("rejects malformed setup-key API responses", async () => {
+    mockFetch.mockResolvedValue(
+      new Response(JSON.stringify({ data: { key_id: "key_without_secret" } }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    const service = createAPortService(mockEnv);
+    const result = await service.createPassportSetupKey("ap_missing_key");
+
+    expect(result.success).toBe(false);
+    expect(result.error?.message).toContain("Setup key missing");
   });
 
   it("fails when org ID is missing", async () => {

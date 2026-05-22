@@ -115,14 +115,27 @@ describe("POST /api/issue", () => {
   });
 
   it("returns 201 on successful issuance", async () => {
-    mockFetch.mockResolvedValue(
-      new Response(
+    mockFetch.mockImplementation(async (url: string) => {
+      if (url.includes("/api/passports/ap_new123/setup-key")) {
+        return new Response(
+          JSON.stringify({
+            data: {
+              key_id: "key_setup_123",
+              key: "apk_secret_setup_key",
+              scopes: ["read"],
+            },
+          }),
+          { status: 201, headers: { "Content-Type": "application/json" } },
+        );
+      }
+
+      return new Response(
         JSON.stringify({
           data: { agent_id: "ap_new123", did: "did:aport:123", claimed: false },
         }),
         { status: 201, headers: { "Content-Type": "application/json" } },
-      ),
-    );
+      );
+    });
 
     const ctx = createContext({
       name: "ARIA",
@@ -142,10 +155,85 @@ describe("POST /api/issue", () => {
       ok: boolean;
       agent_id: string;
       claim_email_sent: boolean;
+      api_key?: string;
+      api_key_id?: string;
+      api_key_scopes?: string[];
     };
     expect(body.ok).toBe(true);
     expect(body.agent_id).toBe("ap_new123");
     expect(body.claim_email_sent).toBe(true);
+    expect(body.api_key).toBe("apk_secret_setup_key");
+    expect(body.api_key_id).toBe("key_setup_123");
+    expect(body.api_key_scopes).toEqual(["read"]);
+  });
+
+  it("uses framework presets for quick hosted issuance", async () => {
+    mockFetch.mockImplementation(async (url: string) => {
+      if (url.includes("/api/public/framework-passport-presets/claude-code")) {
+        return new Response(
+          JSON.stringify({
+            id: "claude-code",
+            name: "Claude Code Agent",
+            role: "Claude Code agent",
+            description: "General-purpose Claude Code agent with permissive defaults.",
+            framework: ["claude-code"],
+            capabilities: [
+              { id: "system.command.execute", params: {} },
+              { id: "data.file.read", params: {} },
+            ],
+            limits: { allowed_commands: ["*"], allowed_paths: ["*"] },
+            regions: ["US", "CA", "EU"],
+            status: "draft",
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+
+      if (url.includes("/api/passports/ap_quick/setup-key")) {
+        return new Response(
+          JSON.stringify({
+            data: {
+              key_id: "key_quick",
+              key: "apk_quick_secret",
+              scopes: ["read"],
+            },
+          }),
+          { status: 201, headers: { "Content-Type": "application/json" } },
+        );
+      }
+
+      return new Response(
+        JSON.stringify({ data: { agent_id: "ap_quick", claimed: false } }),
+        { status: 201, headers: { "Content-Type": "application/json" } },
+      );
+    });
+
+    const ctx = createContext({
+      email: "dev@example.com",
+      framework: ["claude-code"],
+      showInGallery: false,
+    });
+
+    const res = await onRequestPost(ctx);
+    const body = (await res.json()) as { agent_id: string; api_key?: string };
+
+    expect(res.status).toBe(201);
+    expect(body.agent_id).toBe("ap_quick");
+    expect(body.api_key).toBe("apk_quick_secret");
+
+    const issueCall = mockFetch.mock.calls.find(([url]) =>
+      String(url).includes("/api/orgs/ap_org_test/issue"),
+    );
+    const issueBody = JSON.parse(issueCall?.[1]?.body as string);
+    expect(issueBody.name).toBe("Claude Code Agent");
+    expect(issueBody.role).toBe("Claude Code agent");
+    expect(issueBody.description).toContain("Claude Code");
+    expect(issueBody.framework).toEqual(["claude-code"]);
+    expect(issueBody.regions).toEqual(["US", "CA", "EU"]);
+    expect(issueBody.capabilities.map((capability: any) => capability.id)).toEqual(
+      ["system.command.execute", "data.file.read"],
+    );
+    expect(issueBody.limits.allowed_commands).toEqual(["*"]);
   });
 
   it("stores gallery entry in KV when showInGallery is true", async () => {
@@ -172,6 +260,36 @@ describe("POST /api/issue", () => {
     };
     // Should have stored gallery entry and updated index + count
     expect(kv.put).toHaveBeenCalled();
+  });
+
+  it("does not fail browser issuance when setup-key creation is unavailable", async () => {
+    mockFetch.mockImplementation(async (url: string) => {
+      if (url.includes("/api/passports/ap_without_key/setup-key")) {
+        return new Response(JSON.stringify({ message: "setup unavailable" }), {
+          status: 503,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+
+      return new Response(
+        JSON.stringify({ data: { agent_id: "ap_without_key", claimed: false } }),
+        { status: 201, headers: { "Content-Type": "application/json" } },
+      );
+    });
+
+    const ctx = createContext({
+      name: "BrowserBot",
+      description: "A browser-created passport still succeeds without setup key",
+      email: "dev@example.com",
+      showInGallery: false,
+    });
+
+    const res = await onRequestPost(ctx);
+    const body = (await res.json()) as { agent_id: string; api_key?: string };
+
+    expect(res.status).toBe(201);
+    expect(body.agent_id).toBe("ap_without_key");
+    expect(body.api_key).toBeUndefined();
   });
 
   it("defaults role to agent and regions to global", async () => {

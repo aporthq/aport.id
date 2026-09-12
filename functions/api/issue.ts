@@ -40,6 +40,7 @@ interface IssueRequest {
     homepage?: string;
     repo?: string;
     docs?: string;
+    x?: string;
   };
   showInGallery?: boolean;
   deliverable?: DeliverableConfig;
@@ -85,9 +86,11 @@ export const onRequestPost: PagesFunction<AppEnv> = async (context) => {
   }
 
   const aport = createAPortService(env);
-  const requestedFramework = body.framework?.find(
+  const ALLOWED_FRAMEWORKS = ['claude-code', 'cursor', 'openclaw', 'langchain', 'crewai', 'deerflow', 'n8n'];
+  const requestedFrameworkRaw = body.framework?.find(
     (framework) => typeof framework === "string" && framework.trim(),
   );
+  const requestedFramework = ALLOWED_FRAMEWORKS.includes(requestedFrameworkRaw as string) ? requestedFrameworkRaw : undefined;
   let frameworkPreset = null as Awaited<
     ReturnType<typeof aport.getFrameworkPassportPreset>
   >["data"] | null;
@@ -136,8 +139,8 @@ export const onRequestPost: PagesFunction<AppEnv> = async (context) => {
   }
 
   const role = (body.role || frameworkPreset?.role || "agent").trim();
-  const framework = body.framework?.length
-    ? body.framework
+  const framework = requestedFramework
+    ? [requestedFramework]
     : frameworkPreset?.framework || [];
   const regions = body.regions?.length
     ? body.regions

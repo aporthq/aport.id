@@ -15,7 +15,7 @@ export const SITE = {
   description:
     "Create a no-login AI agent passport and setup key in 60 seconds, then install APort guardrails for Claude Code, Cursor, OpenClaw, MCP, and agentic work.",
   url: process.env.NEXT_PUBLIC_APP_URL || "https://aport.id",
-  twitter: "@aport_io",
+  twitter: "@aporthq",
   locale: "en_US",
   themeColor: "#06b6d4",
 } as const;
@@ -111,7 +111,7 @@ export function jsonLdOrganization(): Record<string, unknown> {
     logo: `${SITE.url}/icon.svg`,
     sameAs: [
       "https://github.com/aporthq",
-      "https://x.com/aport_io",
+      "https://x.com/aporthq",
       "https://aport.io",
     ],
     description: SITE.description,

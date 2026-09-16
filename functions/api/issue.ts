@@ -46,6 +46,19 @@ interface IssueRequest {
   deliverable?: DeliverableConfig;
 }
 
+const FRAMEWORK_PRESET_ALLOWLIST = new Set([
+  "claude-code",
+  "cursor",
+  "openclaw",
+  "langchain",
+  "crewai",
+  "deerflow",
+  "n8n",
+  "goose",
+  "codex",
+  "gemini-cli",
+]);
+
 /**
  * Validate the caller-supplied `links` before it is minted into passport
  * metadata and rendered on a public passport page.
@@ -138,19 +151,10 @@ export const onRequestPost: PagesFunction<AppEnv> = async (context) => {
   }
 
   const aport = createAPortService(env);
-  const ALLOWED_FRAMEWORKS = [
-    "claude-code",
-    "cursor",
-    "openclaw",
-    "langchain",
-    "crewai",
-    "deerflow",
-    "n8n",
-  ];
   const requestedFrameworkRaw = body.framework?.find(
     (framework) => typeof framework === "string" && framework.trim(),
   );
-  const requestedFramework = ALLOWED_FRAMEWORKS.includes(
+  const requestedFramework = FRAMEWORK_PRESET_ALLOWLIST.has(
     requestedFrameworkRaw as string,
   )
     ? requestedFrameworkRaw

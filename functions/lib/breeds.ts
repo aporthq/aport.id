@@ -49,6 +49,8 @@ export const BREEDS: Record<string, string> = {
   "crewai": "Sled Dog Team",
   "autogen": "Belgian Malinois",
   "vercel-ai-sdk": "Basenji",
+  "goose": "Nova Scotia Duck Tolling Retriever",
+  "gemini-cli": "Australian Kelpie",
   // Community
   "openclaw": "Husky",
   "other": "Mixed Breed",
@@ -86,6 +88,8 @@ export const BREED_TAGLINES: Record<string, string> = {
   "Sled Dog Team": "Many agents, one mission, no slacking",
   "Belgian Malinois": "Multi-agent ops, Microsoft trained",
   "Basenji": "Barkless and fast, ships to the edge",
+  "Nova Scotia Duck Tolling Retriever": "Friendly local agent, retrieves tools on command",
+  "Australian Kelpie": "Fast terminal herder, keeps work moving",
   "Husky": "Built for the cold, pulls heavy loads",
   "Mixed Breed": "Origin unknown, character undeniable",
 };

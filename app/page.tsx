@@ -103,7 +103,7 @@ export default function HomePage() {
             {
               step: "03",
               title: "Use it with guardrails",
-              desc: "Install APort for Claude Code, Cursor, OpenClaw, MCP, or custom agents.",
+              desc: "Install APort for GitHub, Claude Code, Cursor, Goose, Codex CLI, Gemini CLI, MCP, or custom agents.",
             },
           ].map((item) => (
             <div

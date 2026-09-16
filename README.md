@@ -16,6 +16,9 @@ Use another supported framework by changing the argument:
 
 ```bash
 npx @aporthq/aport-agent-guardrails cursor
+npx @aporthq/aport-agent-guardrails goose --global
+npx @aporthq/aport-agent-guardrails codex
+npx @aporthq/aport-agent-guardrails gemini
 ```
 
 ## Non-Interactive Usage
@@ -44,7 +47,7 @@ For passport-only issuance without framework guardrails, use the browser flow at
 | `description` | What does your agent do? Optional when `framework` maps to a preset | — |
 | `email` | Your email for claim flow | — |
 | `role` | Agent role; framework presets provide this when omitted | `agent` |
-| `framework` | Framework IDs, e.g. `claude-code`, `cursor`, `openclaw` | — |
+| `framework` | Framework IDs, e.g. `github`, `claude-code`, `cursor`, `goose`, `codex`, `gemini-cli`, `openclaw` | — |
 | `regions` | Region list, e.g. `US`, `CA`, `EU`, `global` | Preset or `global` |
 | `showInGallery` | Show/hide from public gallery | `true` |
 

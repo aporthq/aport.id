@@ -165,6 +165,12 @@ describe("POST /api/issue", () => {
     expect(body.api_key).toBe("apk_secret_setup_key");
     expect(body.api_key_id).toBe("key_setup_123");
     expect(body.api_key_scopes).toEqual(["read"]);
+
+    const issueCall = mockFetch.mock.calls.find(([url]) =>
+      String(url).includes("/api/orgs/ap_org_test/issue"),
+    );
+    const issueBody = JSON.parse(issueCall?.[1]?.body as string);
+    expect(issueBody.framework).toEqual(["gpt-4o"]);
   });
 
   it("uses framework presets for quick hosted issuance", async () => {
@@ -235,6 +241,150 @@ describe("POST /api/issue", () => {
       ["system.command.execute", "data.file.read"],
     );
     expect(issueBody.limits.allowed_commands).toEqual(["*"]);
+  });
+
+  it.each([
+    ["goose", "Goose Agent", "Goose agent"],
+    ["codex", "Codex CLI Agent", "Codex CLI agent"],
+    ["gemini-cli", "Gemini CLI Agent", "Gemini CLI agent"],
+  ])(
+    "uses the %s framework preset for quick hosted issuance",
+    async (frameworkId, expectedName, expectedRole) => {
+      mockFetch.mockImplementation(async (url: string) => {
+        if (
+          url.includes(
+            `/api/public/framework-passport-presets/${frameworkId}`,
+          )
+        ) {
+          return new Response(
+            JSON.stringify({
+              id: frameworkId,
+              name: expectedName,
+              role: expectedRole,
+              description: `General-purpose ${expectedName} with permissive defaults.`,
+              framework: [frameworkId],
+              capabilities: [
+                { id: "system.command.execute", params: {} },
+                { id: "data.file.read", params: {} },
+                { id: "mcp.tool.execute", params: {} },
+              ],
+              limits: {
+                allowed_commands: ["*"],
+                allowed_paths: ["*"],
+                allowed_tools: ["*"],
+              },
+              regions: ["US", "CA", "EU"],
+              status: "draft",
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } },
+          );
+        }
+
+        if (url.includes("/api/passports/ap_quick_new/setup-key")) {
+          return new Response(
+            JSON.stringify({
+              data: {
+                key_id: "key_quick_new",
+                key: "apk_quick_new_secret",
+                scopes: ["read"],
+              },
+            }),
+            { status: 201, headers: { "Content-Type": "application/json" } },
+          );
+        }
+
+        return new Response(
+          JSON.stringify({
+            data: { agent_id: "ap_quick_new", claimed: false },
+          }),
+          { status: 201, headers: { "Content-Type": "application/json" } },
+        );
+      });
+
+      const ctx = createContext({
+        email: "dev@example.com",
+        framework: [frameworkId],
+        showInGallery: false,
+      });
+
+      const res = await onRequestPost(ctx);
+      const body = (await res.json()) as { agent_id: string; api_key?: string };
+
+      expect(res.status).toBe(201);
+      expect(body.agent_id).toBe("ap_quick_new");
+      expect(body.api_key).toBe("apk_quick_new_secret");
+
+      const issueCall = mockFetch.mock.calls.find(([url]) =>
+        String(url).includes("/api/orgs/ap_org_test/issue"),
+      );
+      const issueBody = JSON.parse(issueCall?.[1]?.body as string);
+      expect(issueBody.name).toBe(expectedName);
+      expect(issueBody.role).toBe(expectedRole);
+      expect(issueBody.description).toContain(expectedName);
+      expect(issueBody.framework).toEqual([frameworkId]);
+      expect(issueBody.regions).toEqual(["US", "CA", "EU"]);
+      expect(issueBody.capabilities.map((capability: any) => capability.id)).toEqual([
+        "system.command.execute",
+        "data.file.read",
+        "mcp.tool.execute",
+      ]);
+      expect(issueBody.limits.allowed_tools).toEqual(["*"]);
+    },
+  );
+
+  it("preserves sanitized multi-framework selections while using the first matching preset", async () => {
+    mockFetch.mockImplementation(async (url: string) => {
+      if (url.includes("/api/public/framework-passport-presets/goose")) {
+        return new Response(
+          JSON.stringify({
+            id: "goose",
+            name: "Goose Agent",
+            role: "Goose agent",
+            description: "General-purpose Goose agent with permissive defaults.",
+            framework: ["goose"],
+            capabilities: [{ id: "system.command.execute", params: {} }],
+            limits: { allowed_commands: ["*"] },
+            regions: ["US", "CA", "EU"],
+            status: "draft",
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+
+      if (url.includes("/api/passports/ap_multi/setup-key")) {
+        return new Response(
+          JSON.stringify({
+            data: {
+              key_id: "key_multi",
+              key: "apk_multi_secret",
+              scopes: ["read"],
+            },
+          }),
+          { status: 201, headers: { "Content-Type": "application/json" } },
+        );
+      }
+
+      return new Response(
+        JSON.stringify({ data: { agent_id: "ap_multi", claimed: false } }),
+        { status: 201, headers: { "Content-Type": "application/json" } },
+      );
+    });
+
+    const ctx = createContext({
+      email: "dev@example.com",
+      framework: ["goose", "langchain", "  gemini-cli  ", "bad id!", "goose"],
+      showInGallery: false,
+    });
+
+    const res = await onRequestPost(ctx);
+    expect(res.status).toBe(201);
+
+    const issueCall = mockFetch.mock.calls.find(([url]) =>
+      String(url).includes("/api/orgs/ap_org_test/issue"),
+    );
+    const issueBody = JSON.parse(issueCall?.[1]?.body as string);
+    expect(issueBody.name).toBe("Goose Agent");
+    expect(issueBody.framework).toEqual(["goose", "langchain", "gemini-cli"]);
   });
 
   it("passes only explicit slugs so generated quick-start usernames stay backend-unique", async () => {

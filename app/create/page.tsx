@@ -84,7 +84,7 @@ export default function CreatePage() {
             },
             {
               title: "Guardrail-ready setup",
-              desc: "Use the passport with APort for Claude Code, Cursor, OpenClaw, MCP, or custom pre-action authorization.",
+              desc: "Use the passport with APort for GitHub, Claude Code, Cursor, Goose, Codex CLI, Gemini CLI, MCP, or custom pre-action authorization.",
             },
           ].map((item) => (
             <div

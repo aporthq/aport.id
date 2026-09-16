@@ -428,6 +428,34 @@ export const FRAMEWORK_OPTIONS: FrameworkOption[] = [
     socialCopy: "My AI agent's breed is Basenji 🐕 (Vercel AI SDK) — barkless and fast, ships to the edge.",
     funFact: "The Basenji is one of the oldest dog breeds — and one of the only ones that doesn't bark.",
   },
+  {
+    id: "goose",
+    name: "Goose",
+    breed: "Nova Scotia Duck Tolling Retriever",
+    breedDescription: "Friendly local agent, retrieves tools on command",
+    imageApi: null,
+    provider: "Framework",
+    breedSlug: "nova-scotia-duck-tolling-retriever",
+    longDescription:
+      "The Nova Scotia Duck Tolling Retriever is energetic, clever, and built to retrieve. Goose is a local AI agent runtime with Open Plugins and tool hooks, so it can coordinate shell, file, and MCP-style work while APort checks each action before execution.",
+    tags: ["framework", "local-agent", "open-plugins", "hooks", "tools"],
+    socialCopy: "My AI agent's breed is Nova Scotia Duck Tolling Retriever 🐕 (Goose) — friendly local agent, retrieves tools on command.",
+    funFact: "Goose can load local Open Plugins, which is the hook surface APort uses for PreToolUse guardrails.",
+  },
+  {
+    id: "gemini-cli",
+    name: "Gemini CLI",
+    breed: "Australian Kelpie",
+    breedDescription: "Fast terminal herder, keeps work moving",
+    imageApi: null,
+    provider: "Framework",
+    breedSlug: "australian-kelpie",
+    longDescription:
+      "The Australian Kelpie is tireless, fast, and excellent at keeping work in formation. Gemini CLI brings Gemini-powered agent workflows to the terminal, and APort adds command-hook authorization before high-risk actions run.",
+    tags: ["framework", "terminal", "google", "cli", "tools"],
+    socialCopy: "My AI agent's breed is Australian Kelpie 🐕 (Gemini CLI) — fast terminal herder, keeps work moving.",
+    funFact: "APort treats gemini as an installer alias while storing gemini-cli as the canonical passport framework ID.",
+  },
 
   // ── Community & Special ─────────────────────────────────
   {

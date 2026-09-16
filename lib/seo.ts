@@ -13,7 +13,7 @@ export const SITE = {
   name: "aport.id",
   title: "aport.id - Create an AI Agent Passport in 60 Seconds",
   description:
-    "Create a no-login AI agent passport and setup key in 60 seconds, then install APort guardrails for Claude Code, Cursor, OpenClaw, MCP, and agentic work.",
+    "Create a no-login AI agent passport and setup key in 60 seconds, then install APort guardrails for GitHub, Claude Code, Cursor, Goose, Codex CLI, Gemini CLI, MCP, and agentic work.",
   url: process.env.NEXT_PUBLIC_APP_URL || "https://aport.id",
   twitter: "@aporthq",
   locale: "en_US",

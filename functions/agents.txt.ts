@@ -55,9 +55,12 @@ quick-install: npx @aporthq/aport-agent-guardrails claude-code
 quick-install-url: curl -fsSL https://aport.io/install.sh | bash -s -- claude-code
 quick-install-cursor: curl -fsSL https://aport.io/install.sh | bash -s -- cursor
 quick-install-openclaw: curl -fsSL https://aport.io/install.sh | bash -s -- openclaw
+quick-install-goose: curl -fsSL https://aport.io/install.sh | bash -s -- goose --global
+quick-install-codex: curl -fsSL https://aport.io/install.sh | bash -s -- codex
+quick-install-gemini: curl -fsSL https://aport.io/install.sh | bash -s -- gemini
 
 # Supported guardrail targets
-frameworks: Claude Code, Cursor, OpenClaw, LangChain, LangGraph, CrewAI, DeerFlow, MCP tools, n8n, custom agents
+frameworks: GitHub Repository Guard, Claude Code, Cursor, Goose, Codex CLI, Gemini CLI, OpenClaw, LangChain, LangGraph, CrewAI, DeerFlow, MCP tools, n8n, custom agents
 
 # Passport-only browser flow
 create-page: https://aport.id/create

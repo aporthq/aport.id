@@ -44,6 +44,8 @@ describe("FRAMEWORK_OPTIONS", () => {
     expect(ids).toContain("llama-3");
     expect(ids).toContain("langchain");
     expect(ids).toContain("openclaw");
+    expect(ids).toContain("goose");
+    expect(ids).toContain("gemini-cli");
     expect(ids).toContain("other");
   });
 

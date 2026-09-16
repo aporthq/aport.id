@@ -49,6 +49,8 @@ const FRAMEWORKS = [
   { id: "langchain", name: "LangChain", breed: "Sheepdog — always orchestrating, never the star" },
   { id: "crewai", name: "CrewAI", breed: "Sled Dog Team — many agents, one mission, no slacking" },
   { id: "vercel-ai-sdk", name: "Vercel AI SDK", breed: "Basenji — barkless and fast, ships to the edge" },
+  { id: "goose", name: "Goose", breed: "Nova Scotia Duck Tolling Retriever — friendly local agent, retrieves tools on command" },
+  { id: "gemini-cli", name: "Gemini CLI", breed: "Australian Kelpie — fast terminal herder, keeps work moving" },
   { id: "openclaw", name: "OpenClaw", breed: "Husky — built for the cold, pulls heavy loads" },
   { id: "other", name: "Other", breed: "Mixed Breed — origin unknown, character undeniable" },
 ];

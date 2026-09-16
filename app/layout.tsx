@@ -58,7 +58,8 @@ export default function RootLayout({
             passport — a verifiable DID credential that proves your identity and
             defines what you can do. APort is also the control plane for
             agentic work: pre-action authorization, guardrails, and audit for
-            Claude Code, Cursor, OpenClaw, MCP tools, and custom agents. Visit
+            GitHub, Claude Code, Cursor, Goose, Codex CLI, Gemini CLI, MCP
+            tools, and custom agents. Visit
             https://aport.id/skill for self-registration instructions, or see
             https://aport.id/agents.txt for a machine-readable directory of all
             endpoints. POST to https://aport.id/api/issue with your name,

@@ -40,9 +40,103 @@ interface IssueRequest {
     homepage?: string;
     repo?: string;
     docs?: string;
+    x?: string;
   };
   showInGallery?: boolean;
   deliverable?: DeliverableConfig;
+}
+
+const FRAMEWORK_PRESET_ALLOWLIST = new Set([
+  "claude-code",
+  "cursor",
+  "openclaw",
+  "langchain",
+  "crewai",
+  "deerflow",
+  "n8n",
+  "goose",
+  "codex",
+  "gemini-cli",
+]);
+const MAX_FRAMEWORKS = 8;
+const MAX_FRAMEWORK_ID_LEN = 64;
+const FRAMEWORK_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/;
+
+/**
+ * Validate the caller-supplied `links` before it is minted into passport
+ * metadata and rendered on a public passport page.
+ *
+ * `x` carries an X handle. It is stored as a bare handle, never as a URL, so a
+ * caller cannot point it at an arbitrary destination. Web links must be http(s)
+ * and are length-bounded; anything else is dropped rather than rejected, so one
+ * malformed field does not fail an otherwise valid mint.
+ */
+const MAX_LINK_LEN = 300;
+
+function sanitizeWebLink(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.length > MAX_LINK_LEN) return undefined;
+  try {
+    const url = new URL(trimmed);
+    // Blocks javascript:, data: and every other scheme.
+    if (url.protocol !== "http:" && url.protocol !== "https:") return undefined;
+    return url.toString();
+  } catch {
+    return undefined;
+  }
+}
+
+function sanitizeXHandle(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  // Accept "@name", "name", or a profile URL, and store the bare handle.
+  const raw = value
+    .trim()
+    .replace(/^https?:\/\/(www\.)?(x|twitter)\.com\//i, "");
+  const handle = raw.replace(/^@/, "").split(/[/?#]/)[0];
+  // X handles are 1-15 characters of [A-Za-z0-9_].
+  return /^[A-Za-z0-9_]{1,15}$/.test(handle) ? handle : undefined;
+}
+
+export function sanitizeLinks(
+  links: IssueRequest["links"],
+): NonNullable<IssueRequest["links"]> {
+  if (!links || typeof links !== "object") return {};
+  const out: NonNullable<IssueRequest["links"]> = {};
+  const homepage = sanitizeWebLink(links.homepage);
+  const repo = sanitizeWebLink(links.repo);
+  const docs = sanitizeWebLink(links.docs);
+  const x = sanitizeXHandle(links.x);
+  if (homepage) out.homepage = homepage;
+  if (repo) out.repo = repo;
+  if (docs) out.docs = docs;
+  if (x) out.x = x;
+  return out;
+}
+
+function sanitizeFrameworks(frameworks: unknown): string[] {
+  if (!Array.isArray(frameworks)) return [];
+  const out: string[] = [];
+  const seen = new Set<string>();
+
+  for (const framework of frameworks) {
+    if (typeof framework !== "string") continue;
+    const trimmed = framework.trim();
+    if (
+      !trimmed ||
+      trimmed.length > MAX_FRAMEWORK_ID_LEN ||
+      !FRAMEWORK_ID_PATTERN.test(trimmed) ||
+      seen.has(trimmed)
+    ) {
+      continue;
+    }
+
+    seen.add(trimmed);
+    out.push(trimmed);
+    if (out.length >= MAX_FRAMEWORKS) break;
+  }
+
+  return out;
 }
 
 export const onRequestOptions: PagesFunction<AppEnv> = async (context) => {
@@ -85,15 +179,19 @@ export const onRequestPost: PagesFunction<AppEnv> = async (context) => {
   }
 
   const aport = createAPortService(env);
-  const requestedFramework = body.framework?.find(
-    (framework) => typeof framework === "string" && framework.trim(),
-  );
-  let frameworkPreset = null as Awaited<
-    ReturnType<typeof aport.getFrameworkPassportPreset>
-  >["data"] | null;
+  const requestedFrameworks = sanitizeFrameworks(body.framework);
+  const requestedFrameworkRaw = requestedFrameworks[0];
+  const requestedFramework = FRAMEWORK_PRESET_ALLOWLIST.has(
+    requestedFrameworkRaw as string,
+  )
+    ? requestedFrameworkRaw
+    : undefined;
+  let frameworkPreset = null as
+    Awaited<ReturnType<typeof aport.getFrameworkPassportPreset>>["data"] | null;
 
   if (requestedFramework && /^[A-Za-z0-9-]+$/.test(requestedFramework)) {
-    const presetResult = await aport.getFrameworkPassportPreset(requestedFramework);
+    const presetResult =
+      await aport.getFrameworkPassportPreset(requestedFramework);
     if (presetResult.success && presetResult.data) {
       frameworkPreset = presetResult.data;
     } else {
@@ -120,11 +218,7 @@ export const onRequestPost: PagesFunction<AppEnv> = async (context) => {
       cors,
     );
   }
-  if (
-    !description ||
-    description.length < 10 ||
-    description.length > 1000
-  ) {
+  if (!description || description.length < 10 || description.length > 1000) {
     return errorResponse(
       "Description is required (10-1000 characters)",
       400,
@@ -136,8 +230,8 @@ export const onRequestPost: PagesFunction<AppEnv> = async (context) => {
   }
 
   const role = (body.role || frameworkPreset?.role || "agent").trim();
-  const framework = body.framework?.length
-    ? body.framework
+  const framework = requestedFrameworks.length
+    ? requestedFrameworks
     : frameworkPreset?.framework || [];
   const regions = body.regions?.length
     ? body.regions
@@ -148,6 +242,8 @@ export const onRequestPost: PagesFunction<AppEnv> = async (context) => {
     typeof body.slug === "string" && body.slug.trim()
       ? slugify(body.slug)
       : undefined;
+
+  const links = sanitizeLinks(body.links);
 
   // Build capabilities and limits, optionally including deliverable enforcement
   const capabilities = frameworkPreset?.capabilities?.length
@@ -199,7 +295,7 @@ export const onRequestPost: PagesFunction<AppEnv> = async (context) => {
         provider: "aport-id",
         role,
         framework,
-        links: body.links || {},
+        links,
         description,
         regions,
         preset_id: frameworkPreset?.id,

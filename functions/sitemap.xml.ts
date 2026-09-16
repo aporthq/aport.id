@@ -28,6 +28,7 @@ const BREED_SLUGS: Record<string, string> = {
   "qwen": "chow-chow", "command-a": "rhodesian-ridgeback", "amazon-nova": "newfoundland",
   "langchain": "sheepdog", "langgraph": "poodle", "crewai": "sled-dog-team",
   "autogen": "belgian-malinois", "vercel-ai-sdk": "basenji",
+  "goose": "nova-scotia-duck-tolling-retriever", "gemini-cli": "australian-kelpie",
   "openclaw": "husky", "other": "mixed-breed",
 };
 

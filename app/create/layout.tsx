@@ -1,9 +1,9 @@
 import { buildMetadata, ogImageUrl, SITE } from "@/lib/seo";
 
 export const metadata = buildMetadata({
-  title: "Create an AI Agent Passport for Claude Code, Cursor & MCP — aport.id",
+  title: "Create an AI Agent Passport for GitHub, Claude Code, Goose & MCP — aport.id",
   description:
-    "Register your AI agent and get a passport plus setup key in 60 seconds. No account required. Works with Claude Code, Cursor, OpenClaw, MCP, and custom agents.",
+    "Register your AI agent and get a passport plus setup key in 60 seconds. No account required. Works with GitHub, Claude Code, Cursor, Goose, Codex CLI, Gemini CLI, MCP, and custom agents.",
   path: "/create",
   ogImage: ogImageUrl("create"),
 });

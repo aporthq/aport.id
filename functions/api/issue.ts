@@ -58,6 +58,9 @@ const FRAMEWORK_PRESET_ALLOWLIST = new Set([
   "codex",
   "gemini-cli",
 ]);
+const MAX_FRAMEWORKS = 8;
+const MAX_FRAMEWORK_ID_LEN = 64;
+const FRAMEWORK_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/;
 
 /**
  * Validate the caller-supplied `links` before it is minted into passport
@@ -111,6 +114,31 @@ export function sanitizeLinks(
   return out;
 }
 
+function sanitizeFrameworks(frameworks: unknown): string[] {
+  if (!Array.isArray(frameworks)) return [];
+  const out: string[] = [];
+  const seen = new Set<string>();
+
+  for (const framework of frameworks) {
+    if (typeof framework !== "string") continue;
+    const trimmed = framework.trim();
+    if (
+      !trimmed ||
+      trimmed.length > MAX_FRAMEWORK_ID_LEN ||
+      !FRAMEWORK_ID_PATTERN.test(trimmed) ||
+      seen.has(trimmed)
+    ) {
+      continue;
+    }
+
+    seen.add(trimmed);
+    out.push(trimmed);
+    if (out.length >= MAX_FRAMEWORKS) break;
+  }
+
+  return out;
+}
+
 export const onRequestOptions: PagesFunction<AppEnv> = async (context) => {
   const res = handleCorsPreflightRequest(context.request);
   return res || new Response(null, { status: 204 });
@@ -151,9 +179,8 @@ export const onRequestPost: PagesFunction<AppEnv> = async (context) => {
   }
 
   const aport = createAPortService(env);
-  const requestedFrameworkRaw = body.framework?.find(
-    (framework) => typeof framework === "string" && framework.trim(),
-  );
+  const requestedFrameworks = sanitizeFrameworks(body.framework);
+  const requestedFrameworkRaw = requestedFrameworks[0];
   const requestedFramework = FRAMEWORK_PRESET_ALLOWLIST.has(
     requestedFrameworkRaw as string,
   )
@@ -203,8 +230,8 @@ export const onRequestPost: PagesFunction<AppEnv> = async (context) => {
   }
 
   const role = (body.role || frameworkPreset?.role || "agent").trim();
-  const framework = requestedFramework
-    ? [requestedFramework]
+  const framework = requestedFrameworks.length
+    ? requestedFrameworks
     : frameworkPreset?.framework || [];
   const regions = body.regions?.length
     ? body.regions

@@ -288,6 +288,31 @@ function PassportView() {
 
   return (
     <Shell>
+      {/* Unclaimed and linked to an X account: offer the claim.
+          The bot mints these from a public X reply, so it cannot know the
+          person's email and mints against a placeholder contact. They prove the
+          handle instead, on aport.io, which compares it against links.x. */}
+      {!passport.claimed && passport.links?.x && (
+        <div className="mb-6 rounded-xl border border-white/10 bg-white/[0.04] px-5 py-4 animate-fade-in">
+          <p className="text-sm text-white/80">
+            This passport is unclaimed and linked to{" "}
+            <strong>@{passport.links.x.replace(/^@/, "")}</strong> on X.
+          </p>
+          <p className="mt-1 text-sm text-white/50">
+            Sign in with that account to claim it. The handle is checked against
+            the one recorded here, and the passport transfers only if they match.
+          </p>
+          <a
+            href={`https://aport.io/claim?agent_id=${encodeURIComponent(
+              passport.agent_id,
+            )}`}
+            className="mt-3 inline-flex items-center justify-center rounded-lg bg-white px-4 py-2 text-sm font-medium text-black transition-colors hover:bg-white/90"
+          >
+            Claim this passport
+          </a>
+        </div>
+      )}
+
       {/* New passport banner */}
       {isNew && (
         <div className="mb-6 rounded-xl border border-accent/20 bg-accent/[0.08] px-5 py-3.5 text-sm text-accent animate-fade-in">

@@ -33,7 +33,22 @@ export function getClientConfig() {
   };
 
   const getAportDomain = () => {
-    return getEnv("NEXT_PUBLIC_APORT_BASE_URL", "http://localhost:8787");
+    const configured = getEnv("NEXT_PUBLIC_APORT_BASE_URL");
+    if (configured) return configured;
+
+    // This is a static export, so the env var is baked in at build time and a
+    // build without it shipped localhost to production: the widget and VC
+    // iframes on the passport page pointed at a machine the visitor does not
+    // have. Fall back to localhost only when actually running on localhost,
+    // matching getApiBaseUrl above, and to production everywhere else.
+    if (typeof window !== "undefined") {
+      const isLocalDev =
+        window.location.hostname === "localhost" ||
+        window.location.hostname === "127.0.0.1";
+      if (isLocalDev) return "http://localhost:8787";
+    }
+
+    return "https://aport.io";
   };
 
   return {

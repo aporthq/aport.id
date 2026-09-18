@@ -876,8 +876,12 @@ function BadgeEmbed({
 
 function SkillsCTA() {
   const [copied, setCopied] = useState(false);
-  const installCmd =
-    "git clone https://github.com/aporthq/aport-skills.git ~/.claude/skills/aport-skills";
+  // `skills` (vercel-labs) resolves the repo, installs into whichever agent
+  // directories are present and records the version, so it works for Cursor,
+  // Codex and the rest rather than only Claude Code. The old command was a raw
+  // git clone into a hardcoded ~/.claude path, which also dropped the ./setup
+  // step the repo's README pairs with it.
+  const installCmd = "npx skills add aporthq/aport-skills";
 
   const copy = () => {
     navigator.clipboard.writeText(installCmd);

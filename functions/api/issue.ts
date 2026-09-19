@@ -16,6 +16,11 @@ import {
   DEFAULT_LIMITS,
 } from "../lib/default-capabilities";
 import { slugify } from "../lib/slug";
+import {
+  resolveCapabilities,
+  resolveLimits,
+  type Capability,
+} from "../lib/oap";
 import { checkRateLimit, getClientIp } from "../lib/rate-limit";
 
 interface DeliverableConfig {
@@ -44,6 +49,25 @@ interface IssueRequest {
   };
   showInGallery?: boolean;
   deliverable?: DeliverableConfig;
+  /**
+   * Optional customization, applied over the framework preset.
+   *
+   * Omit both and nothing changes: the preset is what makes a passport useful
+   * on day one, and that remains the default path.
+   *
+   * `capabilities` selects the set to grant, so a caller can narrow ("read but
+   * never write") as well as widen. Each entry keeps the preset's params, with
+   * the caller's deep-merged over them.
+   *
+   * `limits` deep-merges over the preset's, so changing
+   * `payments.charge.currency_limits.USD.max_per_tx` leaves the daily cap, the
+   * other currencies and every other limit exactly as the preset set them.
+   *
+   * Semantics live in functions/lib/oap.ts, which is driven by the policy packs
+   * in spec/aport-policies. Nothing about either shape is defined here.
+   */
+  capabilities?: Capability[];
+  limits?: Record<string, any>;
 }
 
 const FRAMEWORK_PRESET_ALLOWLIST = new Set([
@@ -246,15 +270,21 @@ export const onRequestPost: PagesFunction<AppEnv> = async (context) => {
   const links = sanitizeLinks(body.links);
 
   // Build capabilities and limits, optionally including deliverable enforcement
-  const capabilities = frameworkPreset?.capabilities?.length
+  const presetCapabilities: Capability[] = frameworkPreset?.capabilities?.length
     ? frameworkPreset.capabilities.map((capability) => ({
         ...capability,
         params: capability.params ? { ...capability.params } : undefined,
       }))
     : [...DEFAULT_CAPABILITIES];
-  const limits: Record<string, any> = frameworkPreset
+  const presetLimits: Record<string, any> = frameworkPreset
     ? { ...frameworkPreset.limits }
     : { ...DEFAULT_LIMITS };
+
+  // Caller customization over the preset. Applied BEFORE the deliverable block
+  // below, which owns its own capability and its own limits key and stays
+  // authoritative over both.
+  const capabilities = resolveCapabilities(presetCapabilities, body.capabilities);
+  const limits: Record<string, any> = resolveLimits(presetLimits, body.limits);
 
   if (body.deliverable) {
     const d = body.deliverable;

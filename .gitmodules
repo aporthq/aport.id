@@ -1,0 +1,6 @@
+[submodule "spec/aport-policies"]
+	path = spec/aport-policies
+	url = https://github.com/aporthq/aport-policies.git
+[submodule "spec/aport-spec"]
+	path = spec/aport-spec
+	url = https://github.com/aporthq/aport-spec.git

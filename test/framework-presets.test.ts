@@ -43,11 +43,20 @@ describe("nothing unsafe can reach the preset lookup", () => {
 
 describe("the preset endpoint covers everything the installer supports", () => {
   it("has a preset for every offerable framework", async () => {
-    const [presetsRes, installerRes] = await Promise.all([
-      fetch(PRESETS_URL),
-      fetch(GUARDRAILS, { headers: { Accept: "application/vnd.github.raw" } }),
-    ]);
-    // A missing network is not a drift. Skip rather than fail the suite.
+    // A missing network is not a drift, and `fetch` REJECTS on one rather than
+    // returning a non-ok response — so the `res.ok` guard below was never
+    // reached offline and the whole suite failed instead of skipping, which is
+    // the opposite of what the comment promised.
+    let presetsRes: Response;
+    let installerRes: Response;
+    try {
+      [presetsRes, installerRes] = await Promise.all([
+        fetch(PRESETS_URL),
+        fetch(GUARDRAILS, { headers: { Accept: "application/vnd.github.raw" } }),
+      ]);
+    } catch {
+      return;
+    }
     if (!presetsRes.ok || !installerRes.ok) return;
 
     const presets = (await presetsRes.json()) as { presets: Array<{ id: string }> };

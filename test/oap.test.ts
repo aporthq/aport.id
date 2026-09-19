@@ -9,6 +9,7 @@ import {
   meetsAssurance,
   asParams,
 } from "../functions/lib/oap";
+import registry from "../functions/lib/generated/oap-registry.json";
 
 /**
  * These tests name no capability they did not read from the policy packs.
@@ -37,6 +38,17 @@ function packCapabilities() {
   }
   return out;
 }
+
+/**
+ * The top of the ladder, read from the schema's own enum.
+ *
+ * This was "L4", which the passport schema does not permit — its values are
+ * L0..L3, L4KYC and L4FIN. Hardcoding it here meant these tests asserted
+ * against a level no passport can carry, and passed only because the
+ * implementation had the same wrong list.
+ */
+const TOP_ASSURANCE: string =
+  registry.assurance_order[registry.assurance_order.length - 1];
 
 const FROM_PACKS = packCapabilities();
 const L0_NO_LIMITS = FROM_PACKS.find((c) => c.min_assurance === "L0" && c.limits_required.length === 0);
@@ -75,14 +87,14 @@ describe("a capability outside the spec is not grantable", () => {
     const v = validateGrant({
       capabilities: [{ id: "acme.invented.capability" }],
       limits: {},
-      assuranceLevel: "L4",
+      assuranceLevel: TOP_ASSURANCE,
     });
     expect(v.map((x) => x.code)).toContain("unknown_capability");
   });
 
   it("rejects an id the passport schema's own pattern forbids", () => {
     for (const bad of ["Data.File.Read", "x; rm -rf /", "../../etc/passwd", "trailing."]) {
-      const v = validateGrant({ capabilities: [{ id: bad }], limits: {}, assuranceLevel: "L4" });
+      const v = validateGrant({ capabilities: [{ id: bad }], limits: {}, assuranceLevel: TOP_ASSURANCE });
       expect(v.map((x) => x.code), bad).toContain("malformed_capability_id");
     }
   });
@@ -93,7 +105,7 @@ describe("a capability outside the spec is not grantable", () => {
       const v = validateGrant({
         capabilities: [{ id: cap.id, params: params as never }],
         limits: limitsFor(cap),
-        assuranceLevel: "L4",
+        assuranceLevel: TOP_ASSURANCE,
       });
       expect(v.map((x) => x.code)).toContain("malformed_params");
     }
@@ -138,7 +150,7 @@ describe("required limits make a grant complete", () => {
     const v = validateGrant({
       capabilities: [{ id: L0_WITH_LIMITS.id }],
       limits: {},
-      assuranceLevel: "L4",
+      assuranceLevel: TOP_ASSURANCE,
     });
     const hit = v.find((x) => x.code === "missing_required_limits");
     expect(hit).toBeDefined();
@@ -150,7 +162,7 @@ describe("required limits make a grant complete", () => {
     const v = validateGrant({
       capabilities: [{ id: L0_WITH_LIMITS.id }],
       limits: limitsFor(L0_WITH_LIMITS),
-      assuranceLevel: "L4",
+      assuranceLevel: TOP_ASSURANCE,
     });
     expect(v).toHaveLength(0);
   });
@@ -162,7 +174,7 @@ describe("required limits make a grant complete", () => {
     const v = validateGrant({
       capabilities: [{ id: L0_WITH_LIMITS.id }],
       limits: flat,
-      assuranceLevel: "L4",
+      assuranceLevel: TOP_ASSURANCE,
     });
     expect(v).toHaveLength(0);
   });
@@ -171,7 +183,7 @@ describe("required limits make a grant complete", () => {
     const v = validateGrant({
       capabilities: [{ id: FROM_PACKS[0].id }],
       limits: [] as never,
-      assuranceLevel: "L4",
+      assuranceLevel: TOP_ASSURANCE,
     });
     expect(v.map((x) => x.code)).toEqual(["malformed_limits"]);
   });

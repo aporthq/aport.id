@@ -277,10 +277,27 @@ export function resolveCapabilities(
   if (!Array.isArray(requested) || requested.length === 0) return preset;
   const chosen: Capability[] = [];
   const seen = new Set<string>();
+  const inPreset = new Set(preset.map((c) => c.id));
   for (const cap of requested) {
-    if (!cap || typeof cap.id !== "string" || !CAPABILITY_ID_RE.test(cap.id)) {
+    // The pattern gate is there to stop a caller injecting an id we would not
+    // otherwise mint. It must not stop one SELECTING an id the preset already
+    // carries, or narrowing a set would quietly differ from taking it whole.
+    //
+    // That is not hypothetical: `identity.manage_roles` is in this build's
+    // defaults and in aport.io's published capability list, and it fails the
+    // OAP passport schema's own id pattern, which allows no underscore. Minting
+    // the defaults granted it while asking for it by name dropped it. Whichever
+    // side of that turns out to be the spec bug, the two paths have to agree.
+    const known = inPreset.has(cap?.id as string);
+    if (!cap || typeof cap.id !== "string" || (!CAPABILITY_ID_RE.test(cap.id) && !known)) {
       console.warn("[oap] ignoring malformed capability id", { id: cap?.id });
       continue;
+    }
+    if (known && !CAPABILITY_ID_RE.test(cap.id)) {
+      console.warn("[oap] preset capability fails the schema id pattern", {
+        id: cap.id,
+        pattern: registry.capability_id_pattern,
+      });
     }
     if (seen.has(cap.id)) continue;
     seen.add(cap.id);

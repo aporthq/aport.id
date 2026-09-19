@@ -259,3 +259,24 @@ describe("a capability list carries one entry per id", () => {
     expect(original[0].params).toEqual({ require_summary: false });
   });
 });
+
+describe("selecting a capability agrees with taking the defaults whole", () => {
+  // The preset is what this endpoint already mints. Whatever the id gate says,
+  // a caller narrowing to a subset must be able to name anything in it.
+  const ODD = "identity.manage_roles"; // real, shipped, and fails the OAP pattern
+  const preset = [{ id: "data.file.read" }, { id: ODD }];
+
+  it("the default mint grants it", () => {
+    expect(resolveCapabilities(preset, undefined).map((c) => c.id)).toContain(ODD);
+  });
+
+  it("naming it does not silently drop it", () => {
+    const out = resolveCapabilities(preset, [{ id: "data.file.read" }, { id: ODD }]);
+    expect(out.map((c) => c.id)).toEqual(["data.file.read", ODD]);
+  });
+
+  it("but an id that is neither valid nor in the preset is still dropped", () => {
+    const out = resolveCapabilities(preset, [{ id: "acme.not_in_preset" }, { id: "data.file.read" }]);
+    expect(out.map((c) => c.id)).toEqual(["data.file.read"]);
+  });
+});

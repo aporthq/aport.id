@@ -42,6 +42,8 @@
     "lint": "ESLINT_USE_FLAT_CONFIG=false eslint . --ext .ts,.tsx,.js,.jsx",
     "lint:fix": "ESLINT_USE_FLAT_CONFIG=false eslint . --ext .ts,.tsx,.js,.jsx --fix",
     "test": "vitest run",
+    "registry:build": "node scripts/build-oap-registry.mjs",
+    "registry:check": "node scripts/build-oap-registry.mjs --check",
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest",
     "type-check": "tsc --noEmit",

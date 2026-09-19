@@ -1,0 +1,251 @@
+{
+  "generated_by": "scripts/build-oap-registry.mjs",
+  "policies_commit": "23a6a896b4c695aad3dbc27997f747ffdfe87677",
+  "spec_commit": "3f326fba6c72215887dcfc0b2910b588f2b2ac6d",
+  "capability_id_pattern": "^[a-z0-9]+(\\.[a-z0-9]+)*$",
+  "assurance_order": [
+    "L0",
+    "L1",
+    "L2",
+    "L3",
+    "L4KYC",
+    "L4FIN"
+  ],
+  "capabilities": {
+    "agent.session.create": {
+      "policy_id": "agent.session.create.v1",
+      "policy_version": "1.0.0",
+      "min_assurance": "L0",
+      "limits_required": [
+        "max_sessions_per_user",
+        "max_session_duration"
+      ]
+    },
+    "agent.tool.register": {
+      "policy_id": "agent.tool.register.v1",
+      "policy_version": "1.0.0",
+      "min_assurance": "L0",
+      "limits_required": [
+        "max_tools_per_agent",
+        "max_registrations_per_day"
+      ]
+    },
+    "repo.release": {
+      "policy_id": "code.release.publish.v1",
+      "policy_version": "1.0.0",
+      "min_assurance": "L3",
+      "limits_required": []
+    },
+    "repo.pr.create": {
+      "policy_id": "code.repository.merge.v1",
+      "policy_version": "1.0.0",
+      "min_assurance": "L2",
+      "limits_required": [
+        "max_prs_per_day",
+        "max_merges_per_day",
+        "max_pr_size_kb"
+      ]
+    },
+    "repo.merge": {
+      "policy_id": "code.repository.merge.v1",
+      "policy_version": "1.0.0",
+      "min_assurance": "L2",
+      "limits_required": [
+        "max_prs_per_day",
+        "max_merges_per_day",
+        "max_pr_size_kb"
+      ]
+    },
+    "data.export": {
+      "policy_id": "data.export.create.v1",
+      "policy_version": "1.0.0",
+      "min_assurance": "L1",
+      "limits_required": [
+        "max_export_rows",
+        "allow_pii"
+      ]
+    },
+    "data.file.read": {
+      "policy_id": "data.file.read.v1",
+      "policy_version": "1.0.0",
+      "min_assurance": "L0",
+      "limits_required": [
+        "allowed_paths"
+      ]
+    },
+    "data.file.write": {
+      "policy_id": "data.file.write.v1",
+      "policy_version": "1.0.0",
+      "min_assurance": "L0",
+      "limits_required": [
+        "allowed_paths"
+      ]
+    },
+    "data.report.ingest": {
+      "policy_id": "data.report.ingest.v1",
+      "policy_version": "1.0.0",
+      "min_assurance": "L2",
+      "limits_required": [
+        "approved_sources",
+        "max_data_age_seconds",
+        "max_data_size_mb",
+        "max_ingest_frequency_per_hour",
+        "data_quality_threshold",
+        "required_validation_checks"
+      ]
+    },
+    "deliverable.task.complete": {
+      "policy_id": "deliverable.task.complete.v1",
+      "policy_version": "1.0.0",
+      "min_assurance": "L0",
+      "limits_required": []
+    },
+    "finance.crypto.trade": {
+      "policy_id": "finance.crypto.trade.v1",
+      "policy_version": "1.0.0",
+      "min_assurance": "L3",
+      "limits_required": [
+        "allowed_exchanges",
+        "allowed_tokens",
+        "max_trade_size_usd",
+        "max_hot_wallet_trade_usd",
+        "max_daily_trade_volume_usd",
+        "max_trades_per_day"
+      ]
+    },
+    "payments.charge": {
+      "policy_id": "finance.payment.charge.v1",
+      "policy_version": "1.0.0",
+      "min_assurance": "L2",
+      "limits_required": [
+        "currency_limits",
+        "allowed_merchant_ids",
+        "allowed_countries",
+        "blocked_categories",
+        "max_items_per_tx",
+        "require_assurance_at_least",
+        "idempotency_required",
+        "approval_required"
+      ]
+    },
+    "payments.payout": {
+      "policy_id": "finance.payment.payout.v1",
+      "policy_version": "1.0.0",
+      "min_assurance": "L3",
+      "limits_required": [
+        "supported_currencies",
+        "currency_limits",
+        "allowed_destination_types",
+        "allowed_recipients",
+        "max_payouts_per_day",
+        "compliance_checks_required",
+        "approval_required"
+      ]
+    },
+    "finance.payment.refund": {
+      "policy_id": "finance.payment.refund.v1",
+      "policy_version": "1.0.0",
+      "min_assurance": "L2",
+      "limits_required": [
+        "supported_currencies",
+        "currency_limits",
+        "refund_reason_codes",
+        "regions",
+        "approval_required"
+      ]
+    },
+    "finance.transaction": {
+      "policy_id": "finance.transaction.execute.v1",
+      "policy_version": "1.0.0",
+      "min_assurance": "L3",
+      "limits_required": [
+        "allowed_transaction_types",
+        "allowed_asset_classes",
+        "max_exposure_per_tx_usd",
+        "allowed_source_account_types",
+        "restricted_source_account_types",
+        "max_exposure_per_counterparty_usd",
+        "approval_required"
+      ]
+    },
+    "data.access": {
+      "policy_id": "governance.data.access.v1",
+      "policy_version": "1.0.0",
+      "min_assurance": "L3",
+      "limits_required": [
+        "allowed_classifications",
+        "permissions",
+        "allowed_jurisdictions",
+        "max_rows_per_export",
+        "allowed_destination_jurisdictions",
+        "balance_inquiry_cap_usd"
+      ]
+    },
+    "legal.contract.review": {
+      "policy_id": "legal.contract.review.v1",
+      "policy_version": "1.0.0",
+      "min_assurance": "L3",
+      "limits_required": [
+        "allowed_document_types",
+        "max_document_size_mb",
+        "allowed_contract_jurisdictions",
+        "require_attorney_review",
+        "privilege_protection_enabled",
+        "max_contracts_per_day",
+        "allowed_client_tiers",
+        "supported_currencies",
+        "currency_limits",
+        "require_client_consent",
+        "require_conflicts_check",
+        "require_fee_disclosure",
+        "allowed_attorney_jurisdictions",
+        "require_matter_isolation"
+      ]
+    },
+    "mcp.tool.execute": {
+      "policy_id": "mcp.tool.execute.v1",
+      "policy_version": "1.0.0",
+      "min_assurance": "L0",
+      "limits_required": [
+        "allowed_servers",
+        "max_calls_per_minute"
+      ]
+    },
+    "messaging.send": {
+      "policy_id": "messaging.message.send.v1",
+      "policy_version": "1.0.0",
+      "min_assurance": "L0",
+      "limits_required": [
+        "msgs_per_min",
+        "msgs_per_day",
+        "allowed_recipients",
+        "approval_required"
+      ]
+    },
+    "system.command.execute": {
+      "policy_id": "system.command.execute.v1",
+      "policy_version": "1.0.0",
+      "min_assurance": "L0",
+      "limits_required": [
+        "allowed_commands",
+        "max_execution_time"
+      ]
+    },
+    "web.browser": {
+      "policy_id": "web.browser.v1",
+      "policy_version": "1.0.0",
+      "min_assurance": "L0",
+      "limits_required": [
+        "allowed_domains"
+      ]
+    },
+    "web.fetch": {
+      "policy_id": "web.fetch.v1",
+      "policy_version": "1.0.0",
+      "min_assurance": "L0",
+      "limits_required": [
+        "allowed_domains"
+      ]
+    }
+  }
+}

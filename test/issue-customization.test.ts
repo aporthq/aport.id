@@ -4,6 +4,7 @@ import {
   resolveLimits,
   deepMerge,
   upsertCapability,
+  meetsAssurance,
 } from "../functions/lib/oap";
 
 /**
@@ -278,5 +279,85 @@ describe("selecting a capability agrees with taking the defaults whole", () => {
   it("but an id that is neither valid nor in the preset is still dropped", () => {
     const out = resolveCapabilities(preset, [{ id: "acme.not_in_preset" }, { id: "data.file.read" }]);
     expect(out.map((c) => c.id)).toEqual(["data.file.read"]);
+  });
+});
+
+describe("a namespaced override lands on the flat defaults, not beside them", () => {
+  // The shapes really do differ: DEFAULT_LIMITS is flat (`currency_limits` at
+  // the top level) while the OAP shape a caller sends is per capability. A deep
+  // merge alone sees two unrelated keys, so narrowing one currency's cap
+  // produced a namespace containing only that — no daily cap, no other
+  // currency — while the real defaults sat above it, shadowed.
+  const FLAT = {
+    currency_limits: {
+      USD: { max_per_tx: 50000, daily_cap: 250000 },
+      EUR: { max_per_tx: 45000, daily_cap: 225000 },
+    },
+    approval_required: false,
+    max_actions_per_min: 300,
+  };
+
+  const out = resolveLimits(FLAT, {
+    "payments.charge": { currency_limits: { USD: { max_per_tx: 500 } } },
+  });
+
+  it("applies the change inside the namespace", () => {
+    expect(out["payments.charge"].currency_limits.USD.max_per_tx).toBe(500);
+  });
+
+  it("keeps the sibling the caller never mentioned", () => {
+    expect(out["payments.charge"].currency_limits.USD.daily_cap).toBe(250000);
+  });
+
+  it("keeps the other currency", () => {
+    expect(out["payments.charge"].currency_limits.EUR).toEqual({
+      max_per_tx: 45000,
+      daily_cap: 225000,
+    });
+  });
+
+  it("seeds the namespace's other required limits from the flat defaults", () => {
+    // `approval_required` is in the pack's limits_required for payments.charge.
+    expect(out["payments.charge"].approval_required).toBe(false);
+  });
+
+  it("takes only the keys that capability's policy evaluates", () => {
+    expect(out["payments.charge"].max_actions_per_min).toBeUndefined();
+  });
+
+  it("leaves the flat defaults in place for anything still reading them", () => {
+    expect(out.currency_limits.USD.max_per_tx).toBe(50000);
+    expect(out.max_actions_per_min).toBe(300);
+  });
+
+  it("does not invent namespaces the caller never mentioned", () => {
+    expect(resolveLimits(FLAT, { max_actions_per_min: 10 })["payments.charge"]).toBeUndefined();
+  });
+
+  it("does not disturb a preset that is already namespaced", () => {
+    const nested = { "payments.charge": { currency_limits: { USD: { daily_cap: 9 } } } };
+    const merged = resolveLimits(nested, {
+      "payments.charge": { currency_limits: { USD: { max_per_tx: 5 } } },
+    });
+    expect(merged["payments.charge"].currency_limits.USD).toEqual({ daily_cap: 9, max_per_tx: 5 });
+  });
+});
+
+describe("the assurance ladder is the schema's, not a guess", () => {
+  it("accepts the values createBuilderPassport actually returns", () => {
+    // It returns L4KYC for a KYC-completed passport, and the ladder here used
+    // to be ["L0".."L4"] — so a fully verified passport failed every check.
+    expect(meetsAssurance("L4KYC", "L3")).toBe(true);
+    expect(meetsAssurance("L4FIN", "L0")).toBe(true);
+  });
+
+  it("treats the two L4 variants as the same tier", () => {
+    expect(meetsAssurance("L4KYC", "L4FIN")).toBe(true);
+    expect(meetsAssurance("L4FIN", "L4KYC")).toBe(true);
+  });
+
+  it("still refuses a value the schema does not permit", () => {
+    expect(meetsAssurance("L4", "L0")).toBe(false);
+    expect(meetsAssurance("L9", "L0")).toBe(false);
   });
 });

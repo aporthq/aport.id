@@ -85,15 +85,30 @@ export function registryProvenance(): Record<string, unknown> {
 /**
  * Is `have` at least `need` on the assurance ladder?
  *
- * An unrecognised level is treated as insufficient rather than as zero: a
- * passport carrying a level this build has never heard of is not evidence of
+ * Ranked by the tier in the name, not by position in the enum. The schema's
+ * values are L0, L1, L2, L3, L4KYC and L4FIN: the last two are the SAME tier
+ * reached by different evidence — identity verification or financial — and
+ * neither outranks the other. Comparing enum positions would make L4FIN beat
+ * L4KYC for no reason, and a policy pack asking for one specifically is not a
+ * thing the packs do; every active pack asks for L0 through L3.
+ *
+ * A level outside the schema is insufficient rather than zero: a passport
+ * carrying something this build has never heard of is not evidence of
  * anything, and guessing its position would be the permissive guess.
  */
 export function meetsAssurance(have: string | undefined, need: string): boolean {
-  const haveAt = ORDER.indexOf(String(have));
-  const needAt = ORDER.indexOf(need);
+  const haveAt = assuranceRank(have);
+  const needAt = assuranceRank(need);
   if (haveAt < 0 || needAt < 0) return false;
   return haveAt >= needAt;
+}
+
+/** The numeric tier of a schema-permitted assurance value, or -1. */
+function assuranceRank(level: string | undefined): number {
+  const value = String(level);
+  if (!ORDER.includes(value)) return -1;
+  const tier = /^L(\d+)/.exec(value);
+  return tier ? Number(tier[1]) : -1;
 }
 
 /** `params` is `type: object` in the passport schema. Anything else is dropped. */
@@ -337,7 +352,56 @@ export function resolveLimits(
   requested?: Record<string, any>,
 ): Record<string, any> {
   if (!isPlainObject(requested)) return preset;
-  return deepMerge(preset, requested);
+  return deepMerge(seedNamespaces(preset, requested), requested);
+}
+
+/**
+ * Give a capability namespace the flat defaults that belong to it, before the
+ * caller's override merges onto it.
+ *
+ * Limits come in two shapes and both are real. DEFAULT_LIMITS is flat —
+ * `currency_limits` sits at the top level — while the OAP shape a caller sends
+ * is scoped per capability: `{"payments.charge": {"currency_limits": …}}`. A
+ * deep merge cannot bridge them, because to it those are simply different keys.
+ *
+ * So a caller narrowing one currency's per-transaction cap got a namespace
+ * containing ONLY that: no daily cap, no other currency, no allowed countries.
+ * The flat defaults stayed at the top level, untouched and now shadowed. The
+ * sibling-preserving behaviour this module exists to provide was inverted
+ * precisely where it matters most, and the values it dropped were the financial
+ * ones.
+ *
+ * Which flat keys belong to a capability is not guessed: `limits_required` in
+ * its policy pack says so, and the registry carries it. A capability the packs
+ * do not describe seeds nothing, because there is nothing to seed it from.
+ *
+ * Only namespaces the caller actually mentions are seeded. Creating them all
+ * would rewrite the limits of every default mint to prove a point about one.
+ */
+function seedNamespaces(
+  preset: Record<string, any>,
+  requested: Record<string, any>,
+): Record<string, any> {
+  let seeded: Record<string, any> | null = null;
+  for (const key of Object.keys(requested)) {
+    if (PROTOTYPE_KEYS.has(key)) continue;
+    const rule = RULES[key];
+    // Not a capability namespace, or already one in the preset: nothing to do.
+    if (!rule || !isPlainObject(requested[key]) || isPlainObject(preset[key])) continue;
+
+    const inherited: Record<string, any> = {};
+    for (const limitKey of rule.limits_required) {
+      if (PROTOTYPE_KEYS.has(limitKey)) continue;
+      if (Object.prototype.hasOwnProperty.call(preset, limitKey)) {
+        const value = preset[limitKey];
+        inherited[limitKey] = isPlainObject(value) ? { ...value } : value;
+      }
+    }
+    if (Object.keys(inherited).length === 0) continue;
+    seeded ??= { ...preset };
+    seeded[key] = inherited;
+  }
+  return seeded ?? preset;
 }
 
 /**

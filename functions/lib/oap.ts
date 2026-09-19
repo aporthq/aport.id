@@ -192,6 +192,30 @@ function isPlainObject(value: unknown): value is Record<string, any> {
 }
 
 /**
+ * Keys that reach the prototype chain instead of an object's own data.
+ *
+ * `JSON.parse` produces `__proto__` as a real own property, so it survives the
+ * trip from a request body into the merge. Two things then go wrong at once:
+ * reading `out.__proto__` returns `Object.prototype`, which is an object and
+ * not an array, so the merge recurses into it — and a ~70KB body of nested
+ * `__proto__` keys exhausts the stack with a `RangeError` thrown before the
+ * endpoint's issuance `try`. Writing it is worse: `out.__proto__ = value` runs
+ * the setter and reparents the object rather than storing a limit.
+ *
+ * None of these is a limit key or a capability id, so dropping them costs
+ * nothing that the spec allows.
+ */
+const PROTOTYPE_KEYS = new Set(["__proto__", "constructor", "prototype"]);
+
+/**
+ * How far a merge will recurse before it stops walking and takes the override
+ * whole. Real limits nest four deep — `payments.charge.currency_limits.USD.
+ * max_per_tx` — so 32 is well past anything the spec produces and well short of
+ * the stack. It is a backstop for shapes PROTOTYPE_KEYS does not cover.
+ */
+const MAX_MERGE_DEPTH = 32;
+
+/**
  * Merge `override` into `base`, recursing into nested objects.
  *
  * Limits nest four deep in practice — `payments.charge.currency_limits.USD.
@@ -205,15 +229,26 @@ function isPlainObject(value: unknown): value is Record<string, any> {
  * a merge rule that fails open on the security-relevant case is the wrong rule.
  * The same goes for scalars.
  *
- * Neither input is mutated.
+ * Neither input is mutated, and no key reaches a prototype: see PROTOTYPE_KEYS.
  */
-export function deepMerge<T extends Record<string, any>>(base: T, override: Record<string, any>): T {
+export function deepMerge<T extends Record<string, any>>(
+  base: T,
+  override: Record<string, any>,
+  depth = 0,
+): T {
   const out: Record<string, any> = { ...base };
   for (const [key, value] of Object.entries(override)) {
+    if (PROTOTYPE_KEYS.has(key)) {
+      console.warn("[oap] dropping a prototype-reaching key from a merge", { key });
+      continue;
+    }
+    // Own properties only. `out[key]` would otherwise answer from the
+    // prototype and merge into something that was never in the preset.
+    const current = Object.prototype.hasOwnProperty.call(out, key) ? out[key] : undefined;
     // An explicit null means "unset this", and is kept as given rather than
     // treated as an absent key.
-    if (isPlainObject(value) && isPlainObject(out[key])) {
-      out[key] = deepMerge(out[key], value);
+    if (depth < MAX_MERGE_DEPTH && isPlainObject(value) && isPlainObject(current)) {
+      out[key] = deepMerge(current, value, depth + 1);
     } else {
       out[key] = isPlainObject(value) ? { ...value } : value;
     }
@@ -308,4 +343,23 @@ export function grantable(
     else rejected.push(...problems);
   }
   return { granted, rejected };
+}
+
+/**
+ * Set `capability` in `list`, replacing any entry that already carries its id.
+ *
+ * A capability list is keyed by id in practice: `resolveCapabilities` dedupes
+ * on it, and every consumer reads an entry back with `.find`. Appending a
+ * second entry for an id therefore does not add anything — it hides the entry
+ * that comes later, so a passport can display one set of parameters while its
+ * policy evaluates another.
+ *
+ * `list` is not mutated.
+ */
+export function upsertCapability(list: Capability[], capability: Capability): Capability[] {
+  const at = list.findIndex((c) => c.id === capability.id);
+  if (at < 0) return [...list, capability];
+  const out = [...list];
+  out[at] = capability;
+  return out;
 }

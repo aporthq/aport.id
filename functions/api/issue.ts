@@ -19,9 +19,17 @@ import { slugify } from "../lib/slug";
 import {
   resolveCapabilities,
   resolveLimits,
+  upsertCapability,
   type Capability,
 } from "../lib/oap";
 import { checkRateLimit, getClientIp } from "../lib/rate-limit";
+
+/**
+ * The capability the `deliverable` block configures. Named once, because both
+ * the capability entry and its limits key must stay the same string and the
+ * passport page looks it up by that string.
+ */
+const DELIVERABLE_CAPABILITY = "deliverable.task.complete";
 
 interface DeliverableConfig {
   require_summary?: boolean;
@@ -283,7 +291,7 @@ export const onRequestPost: PagesFunction<AppEnv> = async (context) => {
   // Caller customization over the preset. Applied BEFORE the deliverable block
   // below, which owns its own capability and its own limits key and stays
   // authoritative over both.
-  const capabilities = resolveCapabilities(presetCapabilities, body.capabilities);
+  let capabilities = resolveCapabilities(presetCapabilities, body.capabilities);
   const limits: Record<string, any> = resolveLimits(presetLimits, body.limits);
 
   if (body.deliverable) {
@@ -303,12 +311,18 @@ export const onRequestPost: PagesFunction<AppEnv> = async (context) => {
       ),
     };
 
-    capabilities.push({
-      id: "deliverable.task.complete",
+    // Replace, never append. A request carrying BOTH `deliverable` and its
+    // capability in `capabilities` produced two entries with the same id: the
+    // caller's, kept by the resolver, and this one. The passport page reads it
+    // back with `.find`, so the card rendered the caller's parameters while the
+    // policy evaluated these — a passport that shows one thing and enforces
+    // another. The deliverable block owns this capability outright.
+    capabilities = upsertCapability(capabilities, {
+      id: DELIVERABLE_CAPABILITY,
       params: deliverableParams,
     });
 
-    limits["deliverable.task.complete"] = deliverableParams;
+    limits[DELIVERABLE_CAPABILITY] = deliverableParams;
   }
 
   try {

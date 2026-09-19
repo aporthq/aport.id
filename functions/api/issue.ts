@@ -78,18 +78,26 @@ interface IssueRequest {
   limits?: Record<string, any>;
 }
 
-const FRAMEWORK_PRESET_ALLOWLIST = new Set([
-  "claude-code",
-  "cursor",
-  "openclaw",
-  "langchain",
-  "crewai",
-  "deerflow",
-  "n8n",
-  "goose",
-  "codex",
-  "gemini-cli",
-]);
+/**
+ * There is no framework allowlist here, deliberately.
+ *
+ * There was one, and it was a hardcoded copy of the key set of
+ * `/api/public/framework-passport-presets` — the endpoint this handler already
+ * calls, two lines below the gate. A local cache of a remote list, checked
+ * immediately before asking the remote. It drifted, as that shape always does,
+ * and started refusing `github`, `langgraph`, `vercel-ai-sdk`, `autogen` and
+ * `Custom`: five presets that exist and work, silently downgraded to generic
+ * defaults because a constant in this file had not been updated.
+ *
+ * The lookup is the authority. A framework with a preset gets it; one without
+ * falls through to the defaults, which is the same outcome the allowlist
+ * produced for an unknown value, minus the maintenance and minus the drift.
+ *
+ * What still guards the value: `sanitizeFrameworks` bounds its length, charset
+ * and count, and the narrower `/^[A-Za-z0-9-]+$/` below runs before it is put
+ * in a URL path. Those are the checks that matter — the allowlist was never
+ * what made this safe.
+ */
 const MAX_FRAMEWORKS = 8;
 const MAX_FRAMEWORK_ID_LEN = 64;
 const FRAMEWORK_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/;
@@ -212,12 +220,7 @@ export const onRequestPost: PagesFunction<AppEnv> = async (context) => {
 
   const aport = createAPortService(env);
   const requestedFrameworks = sanitizeFrameworks(body.framework);
-  const requestedFrameworkRaw = requestedFrameworks[0];
-  const requestedFramework = FRAMEWORK_PRESET_ALLOWLIST.has(
-    requestedFrameworkRaw as string,
-  )
-    ? requestedFrameworkRaw
-    : undefined;
+  const requestedFramework = requestedFrameworks[0];
   let frameworkPreset = null as
     Awaited<ReturnType<typeof aport.getFrameworkPassportPreset>>["data"] | null;
 

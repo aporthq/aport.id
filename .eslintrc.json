@@ -16,6 +16,7 @@
     "out",
     ".wrangler",
     "migrations",
-    "scripts"
+    "scripts",
+    "spec"
   ]
 }

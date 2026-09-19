@@ -16,7 +16,20 @@ import {
   DEFAULT_LIMITS,
 } from "../lib/default-capabilities";
 import { slugify } from "../lib/slug";
+import {
+  resolveCapabilities,
+  resolveLimits,
+  upsertCapability,
+  type Capability,
+} from "../lib/oap";
 import { checkRateLimit, getClientIp } from "../lib/rate-limit";
+
+/**
+ * The capability the `deliverable` block configures. Named once, because both
+ * the capability entry and its limits key must stay the same string and the
+ * passport page looks it up by that string.
+ */
+const DELIVERABLE_CAPABILITY = "deliverable.task.complete";
 
 interface DeliverableConfig {
   require_summary?: boolean;
@@ -44,20 +57,47 @@ interface IssueRequest {
   };
   showInGallery?: boolean;
   deliverable?: DeliverableConfig;
+  /**
+   * Optional customization, applied over the framework preset.
+   *
+   * Omit both and nothing changes: the preset is what makes a passport useful
+   * on day one, and that remains the default path.
+   *
+   * `capabilities` selects the set to grant, so a caller can narrow ("read but
+   * never write") as well as widen. Each entry keeps the preset's params, with
+   * the caller's deep-merged over them.
+   *
+   * `limits` deep-merges over the preset's, so changing
+   * `payments.charge.currency_limits.USD.max_per_tx` leaves the daily cap, the
+   * other currencies and every other limit exactly as the preset set them.
+   *
+   * Semantics live in functions/lib/oap.ts, which is driven by the policy packs
+   * in spec/aport-policies. Nothing about either shape is defined here.
+   */
+  capabilities?: Capability[];
+  limits?: Record<string, any>;
 }
 
-const FRAMEWORK_PRESET_ALLOWLIST = new Set([
-  "claude-code",
-  "cursor",
-  "openclaw",
-  "langchain",
-  "crewai",
-  "deerflow",
-  "n8n",
-  "goose",
-  "codex",
-  "gemini-cli",
-]);
+/**
+ * There is no framework allowlist here, deliberately.
+ *
+ * There was one, and it was a hardcoded copy of the key set of
+ * `/api/public/framework-passport-presets` — the endpoint this handler already
+ * calls, two lines below the gate. A local cache of a remote list, checked
+ * immediately before asking the remote. It drifted, as that shape always does,
+ * and started refusing `github`, `langgraph`, `vercel-ai-sdk`, `autogen` and
+ * `Custom`: five presets that exist and work, silently downgraded to generic
+ * defaults because a constant in this file had not been updated.
+ *
+ * The lookup is the authority. A framework with a preset gets it; one without
+ * falls through to the defaults, which is the same outcome the allowlist
+ * produced for an unknown value, minus the maintenance and minus the drift.
+ *
+ * What still guards the value: `sanitizeFrameworks` bounds its length, charset
+ * and count, and the narrower `/^[A-Za-z0-9-]+$/` below runs before it is put
+ * in a URL path. Those are the checks that matter — the allowlist was never
+ * what made this safe.
+ */
 const MAX_FRAMEWORKS = 8;
 const MAX_FRAMEWORK_ID_LEN = 64;
 const FRAMEWORK_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/;
@@ -180,12 +220,7 @@ export const onRequestPost: PagesFunction<AppEnv> = async (context) => {
 
   const aport = createAPortService(env);
   const requestedFrameworks = sanitizeFrameworks(body.framework);
-  const requestedFrameworkRaw = requestedFrameworks[0];
-  const requestedFramework = FRAMEWORK_PRESET_ALLOWLIST.has(
-    requestedFrameworkRaw as string,
-  )
-    ? requestedFrameworkRaw
-    : undefined;
+  const requestedFramework = requestedFrameworks[0];
   let frameworkPreset = null as
     Awaited<ReturnType<typeof aport.getFrameworkPassportPreset>>["data"] | null;
 
@@ -246,15 +281,21 @@ export const onRequestPost: PagesFunction<AppEnv> = async (context) => {
   const links = sanitizeLinks(body.links);
 
   // Build capabilities and limits, optionally including deliverable enforcement
-  const capabilities = frameworkPreset?.capabilities?.length
+  const presetCapabilities: Capability[] = frameworkPreset?.capabilities?.length
     ? frameworkPreset.capabilities.map((capability) => ({
         ...capability,
         params: capability.params ? { ...capability.params } : undefined,
       }))
     : [...DEFAULT_CAPABILITIES];
-  const limits: Record<string, any> = frameworkPreset
+  const presetLimits: Record<string, any> = frameworkPreset
     ? { ...frameworkPreset.limits }
     : { ...DEFAULT_LIMITS };
+
+  // Caller customization over the preset. Applied BEFORE the deliverable block
+  // below, which owns its own capability and its own limits key and stays
+  // authoritative over both.
+  let capabilities = resolveCapabilities(presetCapabilities, body.capabilities);
+  const limits: Record<string, any> = resolveLimits(presetLimits, body.limits);
 
   if (body.deliverable) {
     const d = body.deliverable;
@@ -273,12 +314,18 @@ export const onRequestPost: PagesFunction<AppEnv> = async (context) => {
       ),
     };
 
-    capabilities.push({
-      id: "deliverable.task.complete",
+    // Replace, never append. A request carrying BOTH `deliverable` and its
+    // capability in `capabilities` produced two entries with the same id: the
+    // caller's, kept by the resolver, and this one. The passport page reads it
+    // back with `.find`, so the card rendered the caller's parameters while the
+    // policy evaluated these — a passport that shows one thing and enforces
+    // another. The deliverable block owns this capability outright.
+    capabilities = upsertCapability(capabilities, {
+      id: DELIVERABLE_CAPABILITY,
       params: deliverableParams,
     });
 
-    limits["deliverable.task.complete"] = deliverableParams;
+    limits[DELIVERABLE_CAPABILITY] = deliverableParams;
   }
 
   try {

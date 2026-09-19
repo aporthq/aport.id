@@ -1,0 +1,446 @@
+/**
+ * OAP compliance, driven by the spec rather than by this file.
+ *
+ * Everything here reads `generated/oap-registry.json`, which is compiled from
+ * the `spec/aport-policies` and `spec/aport-spec` submodules by
+ * `scripts/build-oap-registry.mjs`. No capability name, assurance level or
+ * limit key appears in this module. Supporting a new capability is a submodule
+ * bump and a regenerate, never an edit here.
+ *
+ * What the registry gives us per capability, straight from its policy pack:
+ *
+ *   min_assurance     the floor a passport must reach to be granted it
+ *   limits_required   the limit keys the policy will evaluate against
+ *   policy_id         which pack governs it, for provenance in an error
+ *
+ * Two layers, deliberately separated.
+ *
+ * `resolveCapabilities` / `resolveLimits` are the MINT path. They decide what a
+ * passport carries, and they are permissive by design: aport.io validates
+ * assurance and policy on the way in, and the framework presets themselves ship
+ * capability ids this build's registry does not carry (`repo.push`,
+ * `web.search`). Refusing those here would break working mints to enforce a
+ * rule that is already enforced downstream, so an unrecognised id is logged and
+ * passed through. Only a malformed id or non-object params is dropped, because
+ * those produce a passport that fails the OAP schema itself.
+ *
+ * `validateGrant` is the STRICT path, for a caller that wants to know whether a
+ * grant is complete before sending it: unknown capability, assurance floor,
+ * missing required limits. Nothing in the mint path calls it; it exists so the
+ * vault can check its own inference before minting, rather than discovering a
+ * problem from a rejected passport.
+ */
+
+import registry from "./generated/oap-registry.json";
+
+export interface Capability {
+  id: string;
+  params?: Record<string, any>;
+}
+
+export interface CapabilityRule {
+  policy_id: string;
+  policy_version: string | null;
+  min_assurance: string;
+  limits_required: string[];
+}
+
+export interface Violation {
+  /** Machine-readable, so a caller can branch without parsing prose. */
+  code:
+    | "unknown_capability"
+    | "assurance_too_low"
+    | "missing_required_limits"
+    | "malformed_capability_id"
+    | "malformed_params"
+    | "malformed_limits";
+  capability?: string;
+  message: string;
+  /** Present when the registry has something useful to say about the fix. */
+  detail?: Record<string, unknown>;
+}
+
+const CAPABILITY_ID_RE = new RegExp(registry.capability_id_pattern);
+const RULES = registry.capabilities as Record<string, CapabilityRule>;
+const ORDER: string[] = registry.assurance_order;
+
+/** Every capability this build can grant. Derived, never typed out. */
+export function knownCapabilities(): string[] {
+  return Object.keys(RULES).sort();
+}
+
+export function capabilityRule(id: string): CapabilityRule | undefined {
+  return RULES[id];
+}
+
+/** Which spec commits this build was compiled from. */
+export function registryProvenance(): Record<string, unknown> {
+  return {
+    policies_commit: registry.policies_commit,
+    spec_commit: registry.spec_commit,
+    capabilities: Object.keys(RULES).length,
+  };
+}
+
+/**
+ * Is `have` at least `need` on the assurance ladder?
+ *
+ * Ranked by the tier in the name, not by position in the enum. The schema's
+ * values are L0, L1, L2, L3, L4KYC and L4FIN: the last two are the SAME tier
+ * reached by different evidence — identity verification or financial — and
+ * neither outranks the other. Comparing enum positions would make L4FIN beat
+ * L4KYC for no reason, and a policy pack asking for one specifically is not a
+ * thing the packs do; every active pack asks for L0 through L3.
+ *
+ * A level outside the schema is insufficient rather than zero: a passport
+ * carrying something this build has never heard of is not evidence of
+ * anything, and guessing its position would be the permissive guess.
+ */
+export function meetsAssurance(have: string | undefined, need: string): boolean {
+  const haveAt = assuranceRank(have);
+  const needAt = assuranceRank(need);
+  if (haveAt < 0 || needAt < 0) return false;
+  return haveAt >= needAt;
+}
+
+/** The numeric tier of a schema-permitted assurance value, or -1. */
+function assuranceRank(level: string | undefined): number {
+  const value = String(level);
+  if (!ORDER.includes(value)) return -1;
+  const tier = /^L(\d+)/.exec(value);
+  return tier ? Number(tier[1]) : -1;
+}
+
+/** `params` is `type: object` in the passport schema. Anything else is dropped. */
+export function asParams(value: unknown): Record<string, any> | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  return { ...(value as Record<string, any>) };
+}
+
+/**
+ * Check a capability set and its limits against the registry.
+ *
+ * Returns every violation rather than the first, because a caller fixing a
+ * request wants the whole list, and because a partial report invites a
+ * fix-one-resubmit loop against an endpoint that mints real passports.
+ *
+ * `limits` is read as the OAP shape: keys are capability ids, values are that
+ * capability's limit object. A capability's required keys are looked for inside
+ * its own namespace, falling back to the top level so a flat legacy limits
+ * object is still evaluated rather than rejected outright.
+ */
+export function validateGrant(input: {
+  capabilities: Capability[];
+  limits: Record<string, any>;
+  assuranceLevel: string | undefined;
+}): Violation[] {
+  const { capabilities, limits, assuranceLevel } = input;
+  const violations: Violation[] = [];
+
+  if (!limits || typeof limits !== "object" || Array.isArray(limits)) {
+    violations.push({
+      code: "malformed_limits",
+      message: "limits must be an object keyed by capability id",
+    });
+    return violations;
+  }
+
+  for (const cap of capabilities) {
+    if (!cap || typeof cap.id !== "string" || !CAPABILITY_ID_RE.test(cap.id)) {
+      violations.push({
+        code: "malformed_capability_id",
+        capability: String(cap?.id ?? ""),
+        message: `capability id must match ${registry.capability_id_pattern}`,
+      });
+      continue;
+    }
+
+    if (cap.params !== undefined && asParams(cap.params) === undefined) {
+      violations.push({
+        code: "malformed_params",
+        capability: cap.id,
+        message: "capability params must be an object",
+      });
+    }
+
+    const rule = RULES[cap.id];
+    if (!rule) {
+      violations.push({
+        code: "unknown_capability",
+        capability: cap.id,
+        message: `no active policy pack grants ${cap.id}`,
+        detail: { known: knownCapabilities().length },
+      });
+      continue;
+    }
+
+    if (!meetsAssurance(assuranceLevel, rule.min_assurance)) {
+      violations.push({
+        code: "assurance_too_low",
+        capability: cap.id,
+        message:
+          `${cap.id} requires ${rule.min_assurance} ` +
+          `(${rule.policy_id}); this passport is ${assuranceLevel ?? "unset"}`,
+        detail: { required: rule.min_assurance, actual: assuranceLevel ?? null, policy_id: rule.policy_id },
+      });
+    }
+
+    const scoped = limits[cap.id];
+    const namespace = scoped && typeof scoped === "object" && !Array.isArray(scoped) ? scoped : limits;
+    const missing = rule.limits_required.filter((key) => namespace[key] === undefined);
+    if (missing.length > 0) {
+      violations.push({
+        code: "missing_required_limits",
+        capability: cap.id,
+        message: `${cap.id} requires limits: ${missing.join(", ")}`,
+        detail: { missing, policy_id: rule.policy_id },
+      });
+    }
+  }
+
+  return violations;
+}
+
+/** A plain JSON object: mergeable. Arrays and scalars are values, not shapes. */
+function isPlainObject(value: unknown): value is Record<string, any> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+/**
+ * Keys that reach the prototype chain instead of an object's own data.
+ *
+ * `JSON.parse` produces `__proto__` as a real own property, so it survives the
+ * trip from a request body into the merge. Two things then go wrong at once:
+ * reading `out.__proto__` returns `Object.prototype`, which is an object and
+ * not an array, so the merge recurses into it — and a ~70KB body of nested
+ * `__proto__` keys exhausts the stack with a `RangeError` thrown before the
+ * endpoint's issuance `try`. Writing it is worse: `out.__proto__ = value` runs
+ * the setter and reparents the object rather than storing a limit.
+ *
+ * None of these is a limit key or a capability id, so dropping them costs
+ * nothing that the spec allows.
+ */
+const PROTOTYPE_KEYS = new Set(["__proto__", "constructor", "prototype"]);
+
+/**
+ * How far a merge will recurse before it stops walking and takes the override
+ * whole. Real limits nest four deep — `payments.charge.currency_limits.USD.
+ * max_per_tx` — so 32 is well past anything the spec produces and well short of
+ * the stack. It is a backstop for shapes PROTOTYPE_KEYS does not cover.
+ */
+const MAX_MERGE_DEPTH = 32;
+
+/**
+ * Merge `override` into `base`, recursing into nested objects.
+ *
+ * Limits nest four deep in practice — `payments.charge.currency_limits.USD.
+ * max_per_tx` — so a shallow merge is not a smaller version of this, it is a
+ * silent data loss: changing one currency's per-transaction cap would drop the
+ * other currencies and that currency's daily cap along with them.
+ *
+ * Arrays REPLACE rather than concatenate, and that asymmetry is deliberate. A
+ * limit like `allowed_countries: ["US"]` is a narrowing statement; appending to
+ * the preset's list would widen the very thing the caller was restricting, and
+ * a merge rule that fails open on the security-relevant case is the wrong rule.
+ * The same goes for scalars.
+ *
+ * Neither input is mutated, and no key reaches a prototype: see PROTOTYPE_KEYS.
+ */
+export function deepMerge<T extends Record<string, any>>(
+  base: T,
+  override: Record<string, any>,
+  depth = 0,
+): T {
+  const out: Record<string, any> = { ...base };
+  for (const [key, value] of Object.entries(override)) {
+    if (PROTOTYPE_KEYS.has(key)) {
+      console.warn("[oap] dropping a prototype-reaching key from a merge", { key });
+      continue;
+    }
+    // Own properties only. `out[key]` would otherwise answer from the
+    // prototype and merge into something that was never in the preset.
+    const current = Object.prototype.hasOwnProperty.call(out, key) ? out[key] : undefined;
+    // An explicit null means "unset this", and is kept as given rather than
+    // treated as an absent key.
+    if (depth < MAX_MERGE_DEPTH && isPlainObject(value) && isPlainObject(current)) {
+      out[key] = deepMerge(current, value, depth + 1);
+    } else {
+      out[key] = isPlainObject(value) ? { ...value } : value;
+    }
+  }
+  return out as T;
+}
+
+/**
+ * The capability set to mint, given the preset's and the caller's.
+ *
+ * A supplied list SELECTS: it names the capabilities to grant, so a caller can
+ * narrow as well as widen. Merging could add or replace an entry but never drop
+ * one, which would make "read but never write" inexpressible.
+ *
+ * Each selected entry is still hydrated from the preset, and its params are
+ * deep-merged over the preset's rather than replacing them, so naming a
+ * capability to change one parameter does not discard its other defaults.
+ *
+ * A wholly invalid request keeps the preset: minting a capability-less agent
+ * because the input was garbled is worse than ignoring the input.
+ */
+export function resolveCapabilities(
+  preset: Capability[],
+  requested?: Capability[],
+): Capability[] {
+  if (!Array.isArray(requested) || requested.length === 0) return preset;
+  const chosen: Capability[] = [];
+  const seen = new Set<string>();
+  const inPreset = new Set(preset.map((c) => c.id));
+  for (const cap of requested) {
+    // The pattern gate is there to stop a caller injecting an id we would not
+    // otherwise mint. It must not stop one SELECTING an id the preset already
+    // carries, or narrowing a set would quietly differ from taking it whole.
+    //
+    // That is not hypothetical: `identity.manage_roles` is in this build's
+    // defaults and in aport.io's published capability list, and it fails the
+    // OAP passport schema's own id pattern, which allows no underscore. Minting
+    // the defaults granted it while asking for it by name dropped it. Whichever
+    // side of that turns out to be the spec bug, the two paths have to agree.
+    const known = inPreset.has(cap?.id as string);
+    if (!cap || typeof cap.id !== "string" || (!CAPABILITY_ID_RE.test(cap.id) && !known)) {
+      console.warn("[oap] ignoring malformed capability id", { id: cap?.id });
+      continue;
+    }
+    if (known && !CAPABILITY_ID_RE.test(cap.id)) {
+      console.warn("[oap] preset capability fails the schema id pattern", {
+        id: cap.id,
+        pattern: registry.capability_id_pattern,
+      });
+    }
+    if (seen.has(cap.id)) continue;
+    seen.add(cap.id);
+    if (!RULES[cap.id]) {
+      // Not fatal: aport.io validates on the way in, and the framework presets
+      // themselves ship ids this build's registry does not carry. Surfaced so a
+      // genuine typo is visible in logs rather than minted in silence.
+      console.warn("[oap] capability not in the compiled registry", { id: cap.id });
+    }
+    const fromPreset = preset.find((c) => c.id === cap.id);
+    const presetParams = asParams(fromPreset?.params);
+    const callerParams = asParams(cap.params);
+    const params =
+      presetParams && callerParams
+        ? deepMerge(presetParams, callerParams)
+        : (callerParams ?? presetParams);
+    chosen.push(params ? { id: cap.id, params } : { id: cap.id });
+  }
+  return chosen.length > 0 ? chosen : preset;
+}
+
+/**
+ * The limits to mint, given the preset's and the caller's.
+ *
+ * A deep MERGE over the preset, never a replacement. This endpoint owns the
+ * floor: the preset is what makes a passport useful and bounded on day one, and
+ * a caller adjusts it rather than restating it. Two things follow, and both are
+ * the point:
+ *
+ *  - A default added here later reaches every passport, including ones minted
+ *    by callers that have never heard of it. A replacement would mean every
+ *    integration silently opted out of every future default.
+ *  - Changing one nested value cannot drop its siblings.
+ */
+export function resolveLimits(
+  preset: Record<string, any>,
+  requested?: Record<string, any>,
+): Record<string, any> {
+  if (!isPlainObject(requested)) return preset;
+  return deepMerge(seedNamespaces(preset, requested), requested);
+}
+
+/**
+ * Give a capability namespace the flat defaults that belong to it, before the
+ * caller's override merges onto it.
+ *
+ * Limits come in two shapes and both are real. DEFAULT_LIMITS is flat —
+ * `currency_limits` sits at the top level — while the OAP shape a caller sends
+ * is scoped per capability: `{"payments.charge": {"currency_limits": …}}`. A
+ * deep merge cannot bridge them, because to it those are simply different keys.
+ *
+ * So a caller narrowing one currency's per-transaction cap got a namespace
+ * containing ONLY that: no daily cap, no other currency, no allowed countries.
+ * The flat defaults stayed at the top level, untouched and now shadowed. The
+ * sibling-preserving behaviour this module exists to provide was inverted
+ * precisely where it matters most, and the values it dropped were the financial
+ * ones.
+ *
+ * Which flat keys belong to a capability is not guessed: `limits_required` in
+ * its policy pack says so, and the registry carries it. A capability the packs
+ * do not describe seeds nothing, because there is nothing to seed it from.
+ *
+ * Only namespaces the caller actually mentions are seeded. Creating them all
+ * would rewrite the limits of every default mint to prove a point about one.
+ */
+function seedNamespaces(
+  preset: Record<string, any>,
+  requested: Record<string, any>,
+): Record<string, any> {
+  let seeded: Record<string, any> | null = null;
+  for (const key of Object.keys(requested)) {
+    if (PROTOTYPE_KEYS.has(key)) continue;
+    const rule = RULES[key];
+    // Not a capability namespace, or already one in the preset: nothing to do.
+    if (!rule || !isPlainObject(requested[key]) || isPlainObject(preset[key])) continue;
+
+    const inherited: Record<string, any> = {};
+    for (const limitKey of rule.limits_required) {
+      if (PROTOTYPE_KEYS.has(limitKey)) continue;
+      if (Object.prototype.hasOwnProperty.call(preset, limitKey)) {
+        const value = preset[limitKey];
+        inherited[limitKey] = isPlainObject(value) ? { ...value } : value;
+      }
+    }
+    if (Object.keys(inherited).length === 0) continue;
+    seeded ??= { ...preset };
+    seeded[key] = inherited;
+  }
+  return seeded ?? preset;
+}
+
+/**
+ * The capabilities from `requested` that this passport may actually be granted.
+ *
+ * Used where dropping is the right answer rather than refusing: a mint that
+ * asked for one thing out of reach should still produce the rest, and the
+ * caller is told what was dropped.
+ */
+export function grantable(
+  requested: Capability[],
+  limits: Record<string, any>,
+  assuranceLevel: string | undefined,
+): { granted: Capability[]; rejected: Violation[] } {
+  const rejected: Violation[] = [];
+  const granted: Capability[] = [];
+  for (const cap of requested) {
+    const problems = validateGrant({ capabilities: [cap], limits, assuranceLevel });
+    if (problems.length === 0) granted.push(cap);
+    else rejected.push(...problems);
+  }
+  return { granted, rejected };
+}
+
+/**
+ * Set `capability` in `list`, replacing any entry that already carries its id.
+ *
+ * A capability list is keyed by id in practice: `resolveCapabilities` dedupes
+ * on it, and every consumer reads an entry back with `.find`. Appending a
+ * second entry for an id therefore does not add anything — it hides the entry
+ * that comes later, so a passport can display one set of parameters while its
+ * policy evaluates another.
+ *
+ * `list` is not mutated.
+ */
+export function upsertCapability(list: Capability[], capability: Capability): Capability[] {
+  const at = list.findIndex((c) => c.id === capability.id);
+  if (at < 0) return [...list, capability];
+  const out = [...list];
+  out[at] = capability;
+  return out;
+}
